@@ -5,14 +5,22 @@ import java.util.ArrayList;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import org.apache.xml.resolver.apps.resolver;
 import org.eclipse.app4mc.amalthea.model.Amalthea;
 import org.eclipse.app4mc.amalthea.model.CallGraph;
 import org.eclipse.app4mc.amalthea.model.CallSequence;
 import org.eclipse.app4mc.amalthea.model.CallSequenceItem;
+import org.eclipse.app4mc.amalthea.model.Core;
+import org.eclipse.app4mc.amalthea.model.CoreType;
 import org.eclipse.app4mc.amalthea.model.DataSize;
 import org.eclipse.app4mc.amalthea.model.DataSizeUnit;
 import org.eclipse.app4mc.amalthea.model.Deviation;
+import org.eclipse.app4mc.amalthea.model.ECU;
+import org.eclipse.app4mc.amalthea.model.Frequency;
+import org.eclipse.app4mc.amalthea.model.FrequencyUnit;
 import org.eclipse.app4mc.amalthea.model.GraphEntryBase;
+import org.eclipse.app4mc.amalthea.model.HWModel;
+import org.eclipse.app4mc.amalthea.model.HwSystem;
 import org.eclipse.app4mc.amalthea.model.Instructions;
 import org.eclipse.app4mc.amalthea.model.InstructionsDeviation;
 import org.eclipse.app4mc.amalthea.model.InterProcessStimulus;
@@ -21,7 +29,10 @@ import org.eclipse.app4mc.amalthea.model.Label;
 import org.eclipse.app4mc.amalthea.model.LabelAccess;
 import org.eclipse.app4mc.amalthea.model.LabelAccessEnum;
 import org.eclipse.app4mc.amalthea.model.LongObject;
+import org.eclipse.app4mc.amalthea.model.Microcontroller;
 import org.eclipse.app4mc.amalthea.model.PeriodicStimulus;
+import org.eclipse.app4mc.amalthea.model.Prescaler;
+import org.eclipse.app4mc.amalthea.model.Quartz;
 import org.eclipse.app4mc.amalthea.model.Runnable;
 import org.eclipse.app4mc.amalthea.model.RunnableCall;
 import org.eclipse.app4mc.amalthea.model.RunnableInstructions;
@@ -35,12 +46,17 @@ import org.eclipse.app4mc.amalthea.workflow.core.Context;
 import org.eclipse.app4mc.amalthea.workflow.core.WorkflowComponent;
 import org.eclipse.app4mc.amalthea.workflow.core.exception.WorkflowException;
 import org.eclipse.emf.common.util.EList;
+import org.eclipse.swt.internal.win32.MCHITTESTINFO;
 
 public class LWcomponent_new extends WorkflowComponent{
 	
 	@Override
 	protected void runInternal(Context ctx) throws WorkflowException {
 		// TODO Auto-generated method stub
+		
+		/*+++++++++++++++++++++++++
+		 * Operation in SWModel
+		 ++++++++++++++++++++++++*/
 		// some checking if sw model is available
 		if (null == getAmaltheaModel(ctx).getSwModel()) {
 			
@@ -80,6 +96,42 @@ public class LWcomponent_new extends WorkflowComponent{
 		this.log.info("Instruction Upper Bound of single Runnable: " + deviationLowerBound);
 		
 		
+		/*+++++++++++++++++++++++++
+		 * Operation in HWModel
+		 ++++++++++++++++++++++++*/
+		// some checking if sw model is available
+		if (null == getAmaltheaModel(ctx).getHwModel()) {
+			
+			throw new WorkflowException("No proper HWModel available!");
+		}
+		//get HwSystem from HwModel
+		HwSystem hwSystem = getHwSystem(ctx);
+		this.log.info("Hardware System in HWModel: " + hwSystem);
+		//get ECUList from HwSystem
+		EList<ECU> ecuList = getEcuList(ctx);
+		this.log.info("All ECUs in HwSystem: " + ecuList);
+		//get MicrocontrollerList from ECU
+		EList<Microcontroller> microcontrollerList = getMicrocontrollerList(ctx);
+		this.log.info("All Microcontroller in all ECUs: " + microcontrollerList);
+		//get CoreList from Microcontroller
+		EList<Core> coreList = getCoreList(ctx);
+		this.log.info("All Cores in all Microcontrollers: " + coreList);
+		//get IPC from Core (actually from CoreType)
+		float instructionPerCycle = getIPC(ctx);
+		this.log.info("IPC of the CoreType: " + instructionPerCycle);
+		//get ClockRatio from Prescaler, which is from Core
+		double clockRatio = getPrescalerClockRatio(ctx);
+		this.log.info("ClockRatio of the Prescaler: " + clockRatio);
+		//get Frequency of Quartz
+		Frequency frequency = getPrescalerQuartzFrequency(ctx);
+		this.log.info("Frequency of this Quartz: " + frequency);
+		//get Value and Unit of Frequency of Quartz
+		double frequencyValue = getFrequencyValue(ctx);
+		FrequencyUnit frequencyUnit = getFrequencyUnit(ctx);
+		this.log.info("FrequencyValue is: " + frequencyValue + " The Unit is :" + frequencyUnit);
+
+
+
 		
 	}
 
@@ -373,4 +425,125 @@ public class LWcomponent_new extends WorkflowComponent{
 			return deviationLowerBound;
 		}
 
+		/*
+		 * ++++++++++++++++++++++++++++++++++ 
+		  *++++++++++++++++++++++++++++++++++ 
+		  *Operation in HWModel
+		  *Operation in HWModel
+		  *++++++++++++++++++++++++++++++++++
+		  *++++++++++++++++++++++++++++++++++
+		  */
+		
+		// read the single HwSystem in HWModel 
+		private HwSystem getHwSystem(Context ctx) {
+			final Amalthea amaltheaModel = getAmaltheaModel(ctx);
+
+			assert null != amaltheaModel;
+
+			this.log.info("Starting to read AMALTHEA model...");
+
+			final HWModel hwModel = amaltheaModel.getHwModel();
+
+			HwSystem hardwareSystem = hwModel.getSystem();
+
+			return hardwareSystem;
+		}
+	
+		// get all ECU from HwSystem
+		private EList<ECU> getEcuList(Context ctx) {
+			HwSystem hwSystem = getHwSystem(ctx);
+			
+			EList<ECU> ecuList = hwSystem.getEcus();
+			
+			return ecuList;
+		}
+		
+		//get all Microcontroller from ECUs
+		private EList<Microcontroller> getMicrocontrollerList(Context ctx) {
+			EList<ECU> ecuList = getEcuList(ctx);
+			
+			EList<Microcontroller> microcontrollerList = null;
+			for (ECU ecu : ecuList) {
+				
+				microcontrollerList = ecu.getMicrocontrollers();
+			}
+			
+			return microcontrollerList;
+		}
+		
+		//get all Core from Microcontrollers
+		private EList<Core> getCoreList(Context ctx) {
+			EList<Microcontroller> microcontrollerList = getMicrocontrollerList(ctx);
+			
+			EList<Core> coreList = null;
+			for (Microcontroller microcontroller : microcontrollerList) {
+				
+				coreList = microcontroller.getCores();
+			}
+				
+			return coreList;
+			
+		}
+		
+		//get IPC from "Core Type"
+		private float getIPC(Context ctx) {
+			EList<Core> coreList = getCoreList(ctx);
+			
+			//CoreType coreType = null;
+			float instructionPerCycle = 0;
+			for (Core core : coreList) {
+				
+				CoreType coreType = core.getCoreType();
+				instructionPerCycle = coreType.getInstructionsPerCycle();
+			}
+			
+			return instructionPerCycle;
+			
+		}
+		
+		//get "Clock Ratio" from Prescaler, which is from Core
+		private double getPrescalerClockRatio(Context ctx) {
+			EList<Core> coreList = getCoreList(ctx);
+			
+			Prescaler prescaler = null;
+			double clockRatio = 0;
+			for (Core core : coreList) {
+				
+				prescaler = core.getPrescaler();
+				clockRatio = prescaler.getClockRatio();
+			}
+			return clockRatio;
+			
+		}
+		
+		//get Frequency of Quartz from Prescaler, which is from Core
+		private Frequency getPrescalerQuartzFrequency(Context ctx) {
+			EList<Core> coreList = getCoreList(ctx);
+
+			Prescaler prescaler = null;
+			Quartz quartz = null;
+			Frequency frequency = null;
+			for (Core core : coreList) {
+				
+				prescaler = core.getPrescaler();
+				quartz = prescaler.getQuartz();
+				frequency = quartz.getFrequency();
+				
+			}
+			return frequency;
+		}
+		//get Value of Frequency
+		private double getFrequencyValue(Context ctx) {
+			Frequency frequency = getPrescalerQuartzFrequency(ctx);
+			
+			double frequencyValue = frequency.getValue();
+			return frequencyValue;
+		}
+		//get Unit of Frequency
+		private FrequencyUnit getFrequencyUnit(Context ctx) {
+			Frequency frequency = getPrescalerQuartzFrequency(ctx);
+			
+			FrequencyUnit frequencyUnit = frequency.getUnit();
+			return frequencyUnit;
+		}
 }
