@@ -1,5 +1,6 @@
 package org.eclipse.app4mc.amalthea.example.workflow.components;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -8,15 +9,22 @@ import org.eclipse.app4mc.amalthea.model.Amalthea;
 import org.eclipse.app4mc.amalthea.model.CallGraph;
 import org.eclipse.app4mc.amalthea.model.CallSequence;
 import org.eclipse.app4mc.amalthea.model.CallSequenceItem;
+import org.eclipse.app4mc.amalthea.model.DataSize;
+import org.eclipse.app4mc.amalthea.model.DataSizeUnit;
+import org.eclipse.app4mc.amalthea.model.Deviation;
 import org.eclipse.app4mc.amalthea.model.GraphEntryBase;
+import org.eclipse.app4mc.amalthea.model.Instructions;
+import org.eclipse.app4mc.amalthea.model.InstructionsDeviation;
 import org.eclipse.app4mc.amalthea.model.InterProcessStimulus;
 import org.eclipse.app4mc.amalthea.model.InterProcessTrigger;
 import org.eclipse.app4mc.amalthea.model.Label;
 import org.eclipse.app4mc.amalthea.model.LabelAccess;
 import org.eclipse.app4mc.amalthea.model.LabelAccessEnum;
+import org.eclipse.app4mc.amalthea.model.LongObject;
 import org.eclipse.app4mc.amalthea.model.PeriodicStimulus;
 import org.eclipse.app4mc.amalthea.model.Runnable;
 import org.eclipse.app4mc.amalthea.model.RunnableCall;
+import org.eclipse.app4mc.amalthea.model.RunnableInstructions;
 import org.eclipse.app4mc.amalthea.model.RunnableItem;
 import org.eclipse.app4mc.amalthea.model.SWModel;
 import org.eclipse.app4mc.amalthea.model.Stimulus;
@@ -49,10 +57,30 @@ public class LWcomponent_new extends WorkflowComponent{
 		//RunnableItem
 		EList<RunnableItem> runnableItem = getRunnableItem(ctx);
 		this.log.info("runnableitem in runnable: " + runnableItem);
-		//LabelAccessMode
+		//get LabelAccessMode, exactly read or write or undefined
 		String labelAccessMode = getlabelAccessMode(ctx) ;
 		this.log.info("labe access mode in runnable: " + labelAccessMode);
-	
+		//get Label name
+		String label = getLabelName(ctx);
+		this.log.info("name of labe: " + label);
+		//get Label Value, exactly number of Unit(Bit, Byte, ...)
+		BigInteger labelValue = getLabelValue(ctx);
+		this.log.info("value of labe without Unit: " + labelValue);
+		//get Label Unit, exactly Bit, Byte, Kbyte,...
+		DataSizeUnit labelUnit = getLabelUnit(ctx);
+		this.log.info("unit of label: " + labelUnit);
+		//get Instructions
+		Instructions instructionsUpperBound = getInstructions(ctx);
+		this.log.info("this is instructions in a single Runnable: " + instructionsUpperBound);
+		//get Deviation UpperBound
+		LongObject deviationUpperBound = getDeviationUpperBound(ctx);
+		this.log.info("Instruction Upper Bound of single Runnable: " + deviationUpperBound);
+		//get Deviation LowerBound
+		LongObject deviationLowerBound = getDeviationLowerBound(ctx);
+		this.log.info("Instruction Upper Bound of single Runnable: " + deviationLowerBound);
+		
+		
+		
 	}
 
 		
@@ -197,17 +225,152 @@ public class LWcomponent_new extends WorkflowComponent{
 					
 				}
 		*/
+			
+	 /*
+	  *+++++++++++++++++++++++++ 
+	  *Operation for LabelAccess
+	  *+++++++++++++++++++++++++
+	  */
 		//get LabelAccessMode, exactly write or read or undefined
 		private String getlabelAccessMode(Context ctx) {
 			EList<RunnableItem> runnaItemList = getRunnableItem(ctx); 
+			
 			LabelAccessEnum accessMode = null;
 			for(RunnableItem runnableItem : runnaItemList)
 			if (LabelAccess.class.isInstance(runnableItem) ) {
-				LabelAccess labelInRunnable = LabelAccess.class.cast(runnableItem);
+				LabelAccess labelAccess = LabelAccess.class.cast(runnableItem);
 				
-				accessMode = labelInRunnable.getAccess();
+				accessMode = labelAccess.getAccess();
 			}
 			return accessMode.getLiteral();
 		} 
+		
+		//get name of label, which is write type in each Runnable
+		private String getLabelName(Context ctx) {
+			EList<RunnableItem> runnaItemList = getRunnableItem(ctx); 
+			Label label = null;
+			String accessMode = null;
+			for(RunnableItem runnableItem : runnaItemList) {
+				if (LabelAccess.class.isInstance(runnableItem) ) {
+					LabelAccess labelAccess = LabelAccess.class.cast(runnableItem);
+					
+					accessMode = getlabelAccessMode(ctx);
+					if (accessMode=="write") {
+						label = labelAccess.getData();
+					}
+					//label = labelAccess.getData();
+				}
+			} 
+				
+			return label.getName();
+			
+			}
+		
+		//get Value of this Label, for example this Label use 8 bit space in memory, then through this method we get the number 8.
+		private BigInteger getLabelValue(Context ctx) {
+			EList<RunnableItem> runnaItemList = getRunnableItem(ctx); 
+			Label label = null;
+			DataSize labelSize = null;
+			String accessMode = null;
+			for(RunnableItem runnableItem : runnaItemList) {
+				if (LabelAccess.class.isInstance(runnableItem) ) {
+					LabelAccess labelAccess = LabelAccess.class.cast(runnableItem);
+					
+					accessMode = getlabelAccessMode(ctx);
+					if (accessMode=="write") {
+						label = labelAccess.getData();
+						labelSize = label.getSize();
+					}
+					
+				}
+			} 
+				
+			return labelSize.getValue();
+			
+			}
+		
+		//get Unit of this Label, for example this Label use 8 bit space in memory, then through this method we get the Unit bit.
+		private DataSizeUnit getLabelUnit(Context ctx){
+			EList<RunnableItem> runnaItemList = getRunnableItem(ctx); 
+			Label label = null;
+			DataSize labelSize = null;
+			String accessMode = null;
+			for(RunnableItem runnableItem : runnaItemList) {
+				if (LabelAccess.class.isInstance(runnableItem) ) {
+					LabelAccess labelAccess = LabelAccess.class.cast(runnableItem);
+					
+					accessMode = getlabelAccessMode(ctx);
+					if (accessMode=="write") {
+						label = labelAccess.getData();
+						labelSize = label.getSize();
+					}
+					
+				}
+			} 
+				
+			return labelSize.getUnit();
+			
+		}
+			
+		 /*
+		  *++++++++++++++++++++++++++++++++++ 
+		  *Operation for RunnableInstructions
+		  *++++++++++++++++++++++++++++++++++
+		  */
+		//get Instructions from RunnableInstructions
+		private Instructions getInstructions(Context ctx) {
+			EList<RunnableItem> runnaItemList = getRunnableItem(ctx); 
+			
+			RunnableInstructions runnableInstructions = null;
+			Instructions instructions = null;
+			//InstructionsDeviation instructionDeviation = null;
+			//Deviation<Instructions> instructionDeviation = null;
+			
+			for (RunnableItem runnableItem : runnaItemList) {
+				if (RunnableInstructions.class.isInstance(runnableItem)) {
+					runnableInstructions = RunnableInstructions.class.cast(runnableItem);
+					
+					instructions = runnableInstructions.getDefault();
+					//instructionDeviation = runnableInstructions.getDefault();
+					//runnableInstructions.
+					}
+			}
+			//return instructionDeviation.getUpperBound();
+			return instructions;
+		} 
+		
+		//get UpperBound
+		private LongObject getDeviationUpperBound(Context ctx) {
+			Instructions instruction = getInstructions(ctx);
+			
+			InstructionsDeviation instructionDeviation = null;
+			
+			Deviation<LongObject> deviation = null;
+			LongObject deviationUpperBound = null;
+			if(InstructionsDeviation.class.isInstance(instruction)) {
+				instructionDeviation = InstructionsDeviation.class.cast(instruction);
+				
+				deviation = instructionDeviation.getDeviation();
+				deviationUpperBound = deviation.getUpperBound();
+			}
+			return deviationUpperBound;
+		}
+		
+		//get LowerBound
+		private LongObject getDeviationLowerBound(Context ctx) {
+			Instructions instruction = getInstructions(ctx);
+			
+			InstructionsDeviation instructionDeviation = null;
+			
+			Deviation<LongObject> deviation = null;
+			LongObject deviationLowerBound = null;
+			if(InstructionsDeviation.class.isInstance(instruction)) {
+				instructionDeviation = InstructionsDeviation.class.cast(instruction);
+				
+				deviation = instructionDeviation.getDeviation();
+				deviationLowerBound = deviation.getLowerBound();
+			}
+			return deviationLowerBound;
+		}
 
 }
