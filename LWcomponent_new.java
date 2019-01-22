@@ -1,5 +1,6 @@
 package org.eclipse.app4mc.amalthea.example.workflow.components;
 
+import java.lang.management.MemoryType;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.SortedMap;
@@ -12,6 +13,7 @@ import org.eclipse.app4mc.amalthea.model.CallSequence;
 import org.eclipse.app4mc.amalthea.model.CallSequenceItem;
 import org.eclipse.app4mc.amalthea.model.Core;
 import org.eclipse.app4mc.amalthea.model.CoreType;
+import org.eclipse.app4mc.amalthea.model.Counter;
 import org.eclipse.app4mc.amalthea.model.DataSize;
 import org.eclipse.app4mc.amalthea.model.DataSizeUnit;
 import org.eclipse.app4mc.amalthea.model.Deviation;
@@ -29,6 +31,7 @@ import org.eclipse.app4mc.amalthea.model.Label;
 import org.eclipse.app4mc.amalthea.model.LabelAccess;
 import org.eclipse.app4mc.amalthea.model.LabelAccessEnum;
 import org.eclipse.app4mc.amalthea.model.LongObject;
+import org.eclipse.app4mc.amalthea.model.Memory;
 import org.eclipse.app4mc.amalthea.model.Microcontroller;
 import org.eclipse.app4mc.amalthea.model.PeriodicStimulus;
 import org.eclipse.app4mc.amalthea.model.Prescaler;
@@ -41,6 +44,7 @@ import org.eclipse.app4mc.amalthea.model.SWModel;
 import org.eclipse.app4mc.amalthea.model.Stimulus;
 import org.eclipse.app4mc.amalthea.model.Task;
 import org.eclipse.app4mc.amalthea.model.TaskRunnableCall;
+import org.eclipse.app4mc.amalthea.model.Time;
 import org.eclipse.app4mc.amalthea.model.Value;
 import org.eclipse.app4mc.amalthea.workflow.core.Context;
 import org.eclipse.app4mc.amalthea.workflow.core.WorkflowComponent;
@@ -97,6 +101,13 @@ public class LWcomponent_new extends WorkflowComponent{
 		//get Deviation LowerBound
 		LongObject deviationLowerBound = getDeviationLowerBound(ctx);
 		this.log.info("Instruction Upper Bound of single Runnable: " + deviationLowerBound);
+		//get Period from Task
+		Time period = getTaskPeriod(ctx);
+		this.log.info("Task's Period: " + period);
+		//get Counter from Task, if this task has a InterProcessTrigger for itself
+		Counter counter = getTaskCounter(ctx);
+		this.log.info("This Task will be acitivated by : " + counter +"-th Processing of precedent Task");
+
 		
 		
 		/*+++++++++++++++++++++++++
@@ -140,7 +151,18 @@ public class LWcomponent_new extends WorkflowComponent{
 		Value idlePower = getIdlePower(ctx);
 		this.log.info("The Value of Idle Power is: " + idlePower);
 		
-
+		//get Data Rate from MemoryType, which is from Memory under HwSystem
+		Value dataRateUnderHwSystem = getDataRateUnderHwSystem(ctx);
+		this.log.info("The Value of Data Rate from Memory under HwSystem is: " + dataRateUnderHwSystem);
+		//get Data Rate from MemoryType, which is from Memory under ECU
+		Value dataRateUnderEcu = getDataRateUnderEcu(ctx);
+		this.log.info("The Value of Data Rate from Memory under ECU is: " + dataRateUnderEcu);
+		//get Data Rate from MemoryType, which is from Memory under Microcontroller
+		Value dataRateUnderMicrocontroller = getDataRateUnderMicrocontroller(ctx);
+		this.log.info("The Value of Data Rate from Memory under Microcontroller is: " + dataRateUnderMicrocontroller);
+		//get Data Rate from MemoryType, which is from Memory under Core
+		Value dataRateUnderCore = getDataRateUnderCore(ctx);
+		this.log.info("The Value of Data Rate from Memory under Core is: " + dataRateUnderCore);
 
 		
 	}
@@ -435,7 +457,60 @@ public class LWcomponent_new extends WorkflowComponent{
 			return deviationLowerBound;
 		}
 		
+		/*
+		  *++++++++++++++++++++++++++++++++++ 
+		  *Searching for Period of Task
+		  *++++++++++++++++++++++++++++++++++
+		  */
 		
+		//get Period from Task, if this task has PeriodStimulus
+		private Time getTaskPeriod(Context ctx) {
+			EList<Task> taskList = getTasks(ctx);
+			EList<Stimulus> stimulusList = null;
+			PeriodicStimulus periodicStimulus = null;
+			InterProcessStimulus interProcessStimulus = null;
+			Time period = null;
+			//Counter counter = null;
+			for (Task task : taskList) {
+				stimulusList = task.getStimuli();
+				for (Stimulus stimulus : stimulusList) {
+					if (PeriodicStimulus.class.isInstance(stimulus)) {
+						periodicStimulus = PeriodicStimulus.class.cast(stimulus);
+						
+						period = periodicStimulus.getRecurrence();
+					}
+					//if (InterProcessStimulus.class.isInstance(stimulus)) {
+						//interProcessStimulus = InterProcessStimulus.class.cast(stimulus);
+						
+						//counter = interProcessStimulus.getCounter();
+						//period = counter*
+					//}
+				}
+			}
+			return period;
+		}
+		
+		//get Counter from Task, if this task has InterProcessStimulus
+		private Counter getTaskCounter(Context ctx) {
+			EList<Task> taskList = getTasks(ctx);
+			EList<Stimulus> stimulusList = null;
+			//PeriodicStimulus periodicStimulus = null;
+			InterProcessStimulus interProcessStimulus = null;
+			Time period = null;
+			Counter counter = null;
+			for (Task task : taskList) {
+				stimulusList = task.getStimuli();
+				for (Stimulus stimulus : stimulusList) {
+					if (InterProcessStimulus.class.isInstance(stimulus)) {
+						interProcessStimulus = InterProcessStimulus.class.cast(stimulus);
+						
+						counter = interProcessStimulus.getCounter();
+						//period = counter*
+					}
+				}
+			}
+			return counter;
+		}
 		
 		
 		
@@ -604,6 +679,104 @@ public class LWcomponent_new extends WorkflowComponent{
 			}
 			
 			return idlePower;
+			}
+		
+		/*
+		 * Operation in searching Memory
+		 */
+		
+		//get Data Rate from "Memory Type", the Data Rate is stored in CustomProperty, if Memory is under HwSystem
+		private Value getDataRateUnderHwSystem(Context ctx) {
+			HwSystem hwSystem = getHwSystem(ctx);
+			
+			EList<Memory> memoryList = hwSystem.getMemories();
+			org.eclipse.app4mc.amalthea.model.MemoryType memoryType = null;
+			EMap<String, Value> memoryTypeCustomProperty = null;
+			Value dataRateValue = null;
+			for (Memory memory : memoryList) {
+				
+				memoryType = memory.getType();
+				memoryTypeCustomProperty = memoryType.getCustomProperties();
+				
+				if (memoryTypeCustomProperty.containsKey("Data Rate")) {
+					
+					dataRateValue = memoryTypeCustomProperty.get("Data Rate");
+				}
+			}
+			return dataRateValue;
+		}
+		
+		//get Data Rate from "Memory Type", the Data Rate is stored in CustomProperty, if Memory is under ECU
+		private Value getDataRateUnderEcu(Context ctx) {
+			EList<ECU> ecuList = getEcuList(ctx);
+			
+			EList<Memory> memoryList = null;
+			org.eclipse.app4mc.amalthea.model.MemoryType memoryType = null;
+			EMap<String, Value> memoryTypeCustomProperty = null;
+			Value dataRateValue = null;
+			for (ECU ecu : ecuList) {
+				memoryList = ecu.getMemories();
+				for (Memory memory : memoryList) {
+					
+					memoryType = memory.getType();
+					memoryTypeCustomProperty = memoryType.getCustomProperties();
+					
+					if (memoryTypeCustomProperty.containsKey("Data Rate")) {
+						
+						dataRateValue = memoryTypeCustomProperty.get("Data Rate");
+					}
+				}
+			}
+			return dataRateValue;
+		}
+		
+		//get Data Rate from "Memory Type", the Data Rate is stored in CustomProperty, if Memory is under Microcontroller
+		private Value getDataRateUnderMicrocontroller (Context ctx){
+			EList<Microcontroller> microcontrollerList = getMicrocontrollerList(ctx);
+				
+			EList<Memory> memoryList = null;
+			org.eclipse.app4mc.amalthea.model.MemoryType memoryType = null;
+			EMap<String, Value> memoryTypeCustomProperty = null;
+			Value dataRateValue = null;
+			for (Microcontroller microcontroller : microcontrollerList) {
+				memoryList = microcontroller.getMemories();
+				for (Memory memory : memoryList) {
+					memoryType = memory.getType();
+					memoryTypeCustomProperty = memoryType.getCustomProperties();
+					if (memoryTypeCustomProperty.containsKey("Data Rate")) {
+					
+						dataRateValue = memoryTypeCustomProperty.get("Data Rate");
+					}
+				}	
+				
+			}
+			return dataRateValue;
 			
 		}
+		
+		//get Data Rate from "Memory Type", the Data Rate is stored in CustomProperty, if Memory is under Core
+		private Value getDataRateUnderCore(Context ctx) {
+			EList<Core> coreList = getCoreList(ctx);
+			
+			EList<Memory> memoryList = null;
+			org.eclipse.app4mc.amalthea.model.MemoryType memoryType = null;
+			EMap<String, Value> memoryTypeCustomProperty = null;
+			Value dataRateValue = null;
+			for (Core core : coreList) {
+				memoryList = core.getMemories();
+				for (Memory memory : memoryList) {
+					memoryType = memory.getType();
+					memoryTypeCustomProperty = memoryType.getCustomProperties();
+					if (memoryTypeCustomProperty.containsKey("Data Rate")) {
+					
+						dataRateValue = memoryTypeCustomProperty.get("Data Rate");
+					}
+				}	
+				
+			}
+			return dataRateValue;
+		}	
+			
+		
+		
 }
