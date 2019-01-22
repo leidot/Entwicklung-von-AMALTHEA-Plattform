@@ -46,7 +46,10 @@ import org.eclipse.app4mc.amalthea.workflow.core.Context;
 import org.eclipse.app4mc.amalthea.workflow.core.WorkflowComponent;
 import org.eclipse.app4mc.amalthea.workflow.core.exception.WorkflowException;
 import org.eclipse.emf.common.util.EList;
+import org.eclipse.emf.common.util.EMap;
 import org.eclipse.swt.internal.win32.MCHITTESTINFO;
+import org.eclipse.ui.keys.Key;
+//import org.eclipse.ui.keys.Key;
 
 public class LWcomponent_new extends WorkflowComponent{
 	
@@ -129,7 +132,14 @@ public class LWcomponent_new extends WorkflowComponent{
 		double frequencyValue = getFrequencyValue(ctx);
 		FrequencyUnit frequencyUnit = getFrequencyUnit(ctx);
 		this.log.info("FrequencyValue is: " + frequencyValue + " The Unit is :" + frequencyUnit);
-
+		
+		//get "Computing Power" Info from CoreType
+		Value computingPower = getComputingPower(ctx);
+		this.log.info("The Value of Computing Power is: " + computingPower);
+		//get "Idle Power" Info from CoreType
+		Value idlePower = getIdlePower(ctx);
+		this.log.info("The Value of Idle Power is: " + idlePower);
+		
 
 
 		
@@ -424,6 +434,11 @@ public class LWcomponent_new extends WorkflowComponent{
 			}
 			return deviationLowerBound;
 		}
+		
+		
+		
+		
+		
 
 		/*
 		 * ++++++++++++++++++++++++++++++++++ 
@@ -545,5 +560,50 @@ public class LWcomponent_new extends WorkflowComponent{
 			
 			FrequencyUnit frequencyUnit = frequency.getUnit();
 			return frequencyUnit;
+		}
+		
+		//get "Computing Power" Info from CoreType
+		private Value getComputingPower(Context ctx) {
+			EList<Core> coreList = getCoreList(ctx);
+			
+			CoreType coreType = null;
+			EMap<String, Value> mapCoreTypeCustomProperty = null;
+			Value computingPower = null;
+			for (Core core : coreList) {
+				
+				coreType = core.getCoreType();
+				mapCoreTypeCustomProperty = coreType.getCustomProperties();
+				if (mapCoreTypeCustomProperty.containsKey("Computing Power")) {
+					
+					computingPower = mapCoreTypeCustomProperty.get("Computing Power");
+					}
+			}
+			
+			return computingPower;
+			
+		}
+		
+		//get "Idle Power" Info from CoreType
+		private Value getIdlePower(Context ctx) {
+			EList<Core> coreList = getCoreList(ctx);
+			
+			CoreType coreType = null;
+			EMap<String, Value> mapCoreTypeCustomProperty = null;
+			Value idlePower = null;
+			for (Core core : coreList) {
+				
+				coreType = core.getCoreType();
+				mapCoreTypeCustomProperty = coreType.getCustomProperties();
+				//containsKey只是判断该map中是否含有指定的Key
+				if (mapCoreTypeCustomProperty.containsKey("Idle Power")) {
+					//String powerMode = "Idel Power";
+					//idlePower = mapCoreTypeCustomProperty.get("Idle Power");
+					//idlePower = mapCoreTypeCustomProperty.get(powerMode);
+					idlePower = mapCoreTypeCustomProperty.get("Idle Power");
+					}
+			}
+			
+			return idlePower;
+			
 		}
 }
