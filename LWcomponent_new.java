@@ -71,13 +71,14 @@ public class LWcomponent_new extends WorkflowComponent{
 		}
 		this.log.info("Number of tasks in model: " + getAmaltheaModel(ctx).getSwModel().getTasks().size());
 		this.log.info("Number of tasks in model: " + getAmaltheaModel(ctx).toString());
-        //get TaskList in SWModel
+ /*      
+		//get TaskList in SWModel
 		EList<Task> taskList = getTasks(ctx);
 		this.log.info("taskList in model: " + taskList);
 		//CallSequenceItem
 		EList<CallSequenceItem> callSeq = getCallList(ctx);
 		this.log.info("taskList in model: " + callSeq);
-		//RunnableItem
+		//RunnableItem 沉默这一段，是为了避免主函数中出现双重定义的跳错
 		EList<RunnableItem> runnableItem = getRunnableItem(ctx);
 		this.log.info("runnableitem in runnable: " + runnableItem);
 		//get LabelAccessMode, exactly read or write or undefined
@@ -107,13 +108,13 @@ public class LWcomponent_new extends WorkflowComponent{
 		//get Counter from Task, if this task has a InterProcessTrigger for itself
 		Counter counter = getTaskCounter(ctx);
 		this.log.info("This Task will be acitivated by : " + counter +"-th Processing of precedent Task");
-
+*/
 		
 		
 		/*+++++++++++++++++++++++++
 		 * Operation in HWModel
 		 ++++++++++++++++++++++++*/
-		// some checking if sw model is available
+  	// some checking if sw model is available
 		if (null == getAmaltheaModel(ctx).getHwModel()) {
 			
 			throw new WorkflowException("No proper HWModel available!");
@@ -164,6 +165,49 @@ public class LWcomponent_new extends WorkflowComponent{
 		Value dataRateUnderCore = getDataRateUnderCore(ctx);
 		this.log.info("The Value of Data Rate from Memory under Core is: " + dataRateUnderCore);
 
+		/*+++++++++++++++++++++++++
+		 * Main Function starts here
+		 +++++++++++++++++++++++++*/	
+		
+		//Sorting Tasks according to Priority level ("1", "2",..."9", from high to low)	
+		//In Amalthea model we shall limit the priority of task between 1 and 9, because we use String as data type, which makes a difference in comparing datas.
+		SortedMap<String, ArrayList<Task>> sortedTasksByPrio = getSortedMap(ctx);
+		
+		for (String prio : sortedTasksByPrio.keySet()) {
+			ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
+			this.log.info("Task List of this priority levle" + prio + " is : " + arrayList);
+			for (Task task : arrayList) {
+				String taskName = task.getName();
+				//EList<Stimulus> taskStimuliList = task.getStimuli();
+				
+				//get WCET of single Task
+				
+				//下面这一行中的函数getCallList有问题，不同的Task得到的结果居然是一样的
+				//EList<CallSequenceItem> callSequence = getCallList(ctx);
+				//下面的构造函数就正确了，因为我们采用了形参，而不是采用Contex
+				EList<CallSequenceItem> callSequence = getCallList(task);
+				this.log.info("Call Sequence of this Task" + taskName + " is : " + callSequence);
+				//Judge whether, this CallSequenceItem is CallRunnable
+		//		for (CallSequenceItem callSequenceItem : callSequence) {
+		//			if (TaskRunnableCall.class.isInstance(callSequenceItem)) {
+		//				TaskRunnableCall calledRunnable = TaskRunnableCall.class.cast(callSequenceItem);
+					
+						
+		//			}
+		//		}
+				//EList<RunnableItem> runnableItem = getRunnableItem(ctx);
+				//Instructions instructions = getInstructions(ctx);
+				//LongObject upperBound = getDeviationLowerBound(ctx);
+				//this.log.info("Upper Bound of this Runnable is : " + upperBound);
+
+				
+			}
+		}
+		
+		
+		
+	
+		
 		
 	}
 
@@ -184,54 +228,54 @@ public class LWcomponent_new extends WorkflowComponent{
 		}
 		
 	
-		// Search CallSequence from each Task and cast every possible into CallSequence
+/*		// Search CallSequence from each Task and cast every possible into CallSequence
 		private EList<CallSequenceItem> getCallList(Context ctx) {
 
-			//EList<Task> taskList = getTasks(ctx);
+			EList<Task> taskList = getTasks(ctx);
 
-			/*
-			this.log.info("Task List without sort:" + taskList.toString());
+			
+			//this.log.info("Task List without sort:" + taskList.toString());
 
-			SortedMap<String, ArrayList<Task>> sortedTasksByPrio = new TreeMap<>();
-			CallSequence cseq = null;
+			//SortedMap<String, ArrayList<Task>> sortedTasksByPrio = new TreeMap<>();
+			//CallSequence cseq = null;
 			// for each task in taskList take the following operation, and we get a list of tasks for each level of "Priority"
-			for (Task task : taskList) {
+			//for (Task task : taskList) {
 			    //We must use Value of Priority in form of String in Amalthea Model
-				Value prioValue = task.getCustomProperties().get("priority");
-				String prioStr = prioValue.toString();
+			//	Value prioValue = task.getCustomProperties().get("priority");
+			//	String prioStr = prioValue.toString();
 			     //add, just add a task in ArrayList<Task>, not in TreeMap
-				if (sortedTasksByPrio.containsKey(prioStr)) {
-					sortedTasksByPrio.get(prioStr).add(task);
-				} else {
-					ArrayList<Task> prioTasks = new ArrayList<Task>();
-				    prioTasks.add(task);
-					sortedTasksByPrio.put(prioStr, prioTasks);
-				}
+			//	if (sortedTasksByPrio.containsKey(prioStr)) {
+			//		sortedTasksByPrio.get(prioStr).add(task);
+			//	} else {
+			//		ArrayList<Task> prioTasks = new ArrayList<Task>();
+			//	    prioTasks.add(task);
+			//		sortedTasksByPrio.put(prioStr, prioTasks);
+			//	}
 
-			}
+			//}
 					
-			//Here we set up a LabelList,which consists of only "Write" type. Key is name of Label, Value is invocation amount of tasks.
+			
 					
 			//This is main Process for If-Branch
-			for (String prio : sortedTasksByPrio.keySet()) {
-				ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
-				for (Task task : arrayList) {
-					String taskName = task.getName();
-					EList<Stimulus> taskStimuliList = task.getStimuli();
-					for (Stimulus stimulus : taskStimuliList) {
-						if (PeriodicStimulus.class.isInstance(stimulus)) {
-							PeriodicStimulus periodStimulus = (PeriodicStimulus) stimulus;
-							processTaskPeriodicStimulus(prio, taskName, task, periodStimulus);
-						} else if (InterProcessStimulus.class.isInstance(stimulus)) {
-							InterProcessStimulus interProcStimulus = (InterProcessStimulus) stimulus;
-							processTaskInterProcessStimulus(prio, taskName, task, stimulus);
-						}
-					}
-				}
-			}
+		//	for (String prio : sortedTasksByPrio.keySet()) {
+		//		ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
+		//		for (Task task : arrayList) {
+		//			String taskName = task.getName();
+		//			EList<Stimulus> taskStimuliList = task.getStimuli();
+		//			for (Stimulus stimulus : taskStimuliList) {
+		//				if (PeriodicStimulus.class.isInstance(stimulus)) {
+		//					PeriodicStimulus periodStimulus = (PeriodicStimulus) stimulus;
+		//					processTaskPeriodicStimulus(prio, taskName, task, periodStimulus);
+		//				} else if (InterProcessStimulus.class.isInstance(stimulus)) {
+		//					InterProcessStimulus interProcStimulus = (InterProcessStimulus) stimulus;
+		//					processTaskInterProcessStimulus(prio, taskName, task, stimulus);
+		//				}
+		//			}
+		//		}
+		//	}
 
-			this.log.info("Task List WITH sort:" + sortedTasksByPrio.toString());
-*/
+		//	this.log.info("Task List WITH sort:" + sortedTasksByPrio.toString());
+
 			EList<Task> taskList = getTasks(ctx);
 			CallSequence cseq = null;
 			
@@ -247,9 +291,21 @@ public class LWcomponent_new extends WorkflowComponent{
 			return cseq.getCalls();
 			
 		}
+*/
+		//new getCallList() method
+		private EList<CallSequenceItem> getCallList(Task task) {
+			CallSequence cseq = null;
+			
+			CallGraph cgraph = task.getCallGraph();
+			for (GraphEntryBase entry : cgraph.getGraphEntries()) {
+				 // Cast each entry convert into CallSequence
+				 cseq = CallSequence.class.cast(entry);
+			 	}
+			return cseq.getCalls();
+			
+		}
 		
-		
-				
+/*	++++++++++++++++++++++++++		
 		private void processTaskInterProcessStimulus(String prio, String taskName, Task task, Stimulus stimulus) {
 			// TODO Auto-generated method stub
 					
@@ -259,10 +315,11 @@ public class LWcomponent_new extends WorkflowComponent{
 			// TODO Auto-generated method stub
 					
 		}
-
++++++++++++++++++++++++++++++*/
+		
 		//通过这个函数我们得到每个CallSequence当中的RunnableList(faulse)
 		//通过这个函数我们得到一个Runnable的RunnableItem
-		private EList<RunnableItem> getRunnableItem (Context ctx){
+/*		private EList<RunnableItem> getRunnableItem (Context ctx){
 			EList<CallSequenceItem> callSeq = getCallList(ctx);
 			Runnable calledRunnable = null;
 			//EList<RunnableItem> runnableItem = null;
@@ -284,7 +341,7 @@ public class LWcomponent_new extends WorkflowComponent{
 			return calledRunnable.getRunnableItems();
 			
 		}
-		
+*/		
 		//通过这个函数我们得到一个InterProcessTrigger的某些属性—??
 		/*		private EList<RunnableItem> getRunnableItem (Context ctx){
 					EList<CallSequenceItem> callSeq = getCallList(ctx);
@@ -316,7 +373,7 @@ public class LWcomponent_new extends WorkflowComponent{
 	  *+++++++++++++++++++++++++
 	  */
 		//get LabelAccessMode, exactly write or read or undefined
-		private String getlabelAccessMode(Context ctx) {
+/*		private String getlabelAccessMode(Context ctx) {
 			EList<RunnableItem> runnaItemList = getRunnableItem(ctx); 
 			
 			LabelAccessEnum accessMode = null;
@@ -328,8 +385,8 @@ public class LWcomponent_new extends WorkflowComponent{
 			}
 			return accessMode.getLiteral();
 		} 
-		
-		//get name of label, which is write type in each Runnable
+*/		
+/*		//get name of label, which is write type in each Runnable
 		private String getLabelName(Context ctx) {
 			EList<RunnableItem> runnaItemList = getRunnableItem(ctx); 
 			Label label = null;
@@ -349,9 +406,9 @@ public class LWcomponent_new extends WorkflowComponent{
 			return label.getName();
 			
 			}
-		
+*/		
 		//get Value of this Label, for example this Label use 8 bit space in memory, then through this method we get the number 8.
-		private BigInteger getLabelValue(Context ctx) {
+/*		private BigInteger getLabelValue(Context ctx) {
 			EList<RunnableItem> runnaItemList = getRunnableItem(ctx); 
 			Label label = null;
 			DataSize labelSize = null;
@@ -372,9 +429,9 @@ public class LWcomponent_new extends WorkflowComponent{
 			return labelSize.getValue();
 			
 			}
-		
+*/		
 		//get Unit of this Label, for example this Label use 8 bit space in memory, then through this method we get the Unit bit.
-		private DataSizeUnit getLabelUnit(Context ctx){
+/*		private DataSizeUnit getLabelUnit(Context ctx){
 			EList<RunnableItem> runnaItemList = getRunnableItem(ctx); 
 			Label label = null;
 			DataSize labelSize = null;
@@ -395,14 +452,14 @@ public class LWcomponent_new extends WorkflowComponent{
 			return labelSize.getUnit();
 			
 		}
-			
+	*/		
 		 /*
 		  *++++++++++++++++++++++++++++++++++ 
 		  *Operation for RunnableInstructions
 		  *++++++++++++++++++++++++++++++++++
 		  */
 		//get Instructions from RunnableInstructions
-		private Instructions getInstructions(Context ctx) {
+/*		private Instructions getInstructions(Context ctx) {
 			EList<RunnableItem> runnaItemList = getRunnableItem(ctx); 
 			
 			RunnableInstructions runnableInstructions = null;
@@ -422,8 +479,8 @@ public class LWcomponent_new extends WorkflowComponent{
 			//return instructionDeviation.getUpperBound();
 			return instructions;
 		} 
-		
-		//get UpperBound
+*/		
+/*		//get UpperBound
 		private LongObject getDeviationUpperBound(Context ctx) {
 			Instructions instruction = getInstructions(ctx);
 			
@@ -439,8 +496,8 @@ public class LWcomponent_new extends WorkflowComponent{
 			}
 			return deviationUpperBound;
 		}
-		
-		//get LowerBound
+*/		
+/*		//get LowerBound
 		private LongObject getDeviationLowerBound(Context ctx) {
 			Instructions instruction = getInstructions(ctx);
 			
@@ -456,7 +513,7 @@ public class LWcomponent_new extends WorkflowComponent{
 			}
 			return deviationLowerBound;
 		}
-		
+*/		
 		/*
 		  *++++++++++++++++++++++++++++++++++ 
 		  *Searching for Period of Task
@@ -681,9 +738,9 @@ public class LWcomponent_new extends WorkflowComponent{
 			return idlePower;
 			}
 		
-		/*
+		/*++++++++++++++++++++++++++++++
 		 * Operation in searching Memory
-		 */
+		 +++++++++++++++++++++++++++++*/
 		
 		//get Data Rate from "Memory Type", the Data Rate is stored in CustomProperty, if Memory is under HwSystem
 		private Value getDataRateUnderHwSystem(Context ctx) {
@@ -777,6 +834,33 @@ public class LWcomponent_new extends WorkflowComponent{
 			return dataRateValue;
 		}	
 			
+		//get SortedMap from taskList
+		private SortedMap<String, ArrayList<Task>> getSortedMap(Context ctx) {
+			EList<Task> taskList = getTasks(ctx);
+			this.log.info("Task List without sorting:" + taskList.toString());
+					
+			SortedMap<String, ArrayList<Task>> sortedTasksByPrio = new TreeMap<>();
+			CallSequence cseq = null;
+			for (Task task : taskList) {
+				//We must use Value of Priority in form of String in Amalthea Model
+				//In Amalthea Model we must limit the priority value to 9, exactly 1~9. Otherweise "10" is less than "6" because of String.
+				//In Amalthea Model Priority :9 -> 1, exactly from highest to lowest
+				Value prioValue = task.getCustomProperties().get("priority");
+				String prioStr = prioValue.toString();
+				//add, just add a task in ArrayList<Task>, not in TreeMap
+				if (sortedTasksByPrio.containsKey(prioStr)) {
+					sortedTasksByPrio.get(prioStr).add(task);
+				} else {
+					ArrayList<Task> prioTasks = new ArrayList<Task>();
+				    prioTasks.add(task);
+					sortedTasksByPrio.put(prioStr, prioTasks);
+				}
+			}
+			this.log.info("Task List WITH sorting:" + sortedTasksByPrio.toString());
+			return sortedTasksByPrio;
+		}
+		
+		
 		
 		
 }
