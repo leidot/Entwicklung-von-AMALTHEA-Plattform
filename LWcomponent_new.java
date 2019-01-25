@@ -51,6 +51,7 @@ import org.eclipse.app4mc.amalthea.workflow.core.WorkflowComponent;
 import org.eclipse.app4mc.amalthea.workflow.core.exception.WorkflowException;
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.common.util.EMap;
+import org.eclipse.swt.internal.mozilla.Execute;
 import org.eclipse.swt.internal.win32.MCHITTESTINFO;
 import org.eclipse.ui.keys.Key;
 //import org.eclipse.ui.keys.Key;
@@ -175,33 +176,64 @@ public class LWcomponent_new extends WorkflowComponent{
 		
 		for (String prio : sortedTasksByPrio.keySet()) {
 			ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
-			this.log.info("Task List of this priority levle" + prio + " is : " + arrayList);
+			this.log.info("Task List of this priority levle" + prio + " is : " + arrayList );
 			for (Task task : arrayList) {
 				String taskName = task.getName();
+				long taskWCET = 0;
+				long taskBCET = 0;
 				//EList<Stimulus> taskStimuliList = task.getStimuli();
-				
 				//get WCET of single Task
 				
 				//下面这一行中的函数getCallList有问题，不同的Task得到的结果居然是一样的
 				//EList<CallSequenceItem> callSequence = getCallList(ctx);
-				//下面的构造函数就正确了，因为我们采用了形参，而不是采用Contex
-				EList<CallSequenceItem> callSequence = getCallList(task);
+				//下面的构造函数就正确了，因为我们采用了形参，而不是采用Context
+				EList<CallSequenceItem> callSequence = getCallList_new(task);
 				this.log.info("Call Sequence of this Task" + taskName + " is : " + callSequence);
-				//Judge whether, this CallSequenceItem is CallRunnable
-		//		for (CallSequenceItem callSequenceItem : callSequence) {
-		//			if (TaskRunnableCall.class.isInstance(callSequenceItem)) {
-		//				TaskRunnableCall calledRunnable = TaskRunnableCall.class.cast(callSequenceItem);
-					
-						
-		//			}
-		//		}
-				//EList<RunnableItem> runnableItem = getRunnableItem(ctx);
-				//Instructions instructions = getInstructions(ctx);
-				//LongObject upperBound = getDeviationLowerBound(ctx);
-				//this.log.info("Upper Bound of this Runnable is : " + upperBound);
-
 				
-			}
+				Runnable runnable = null;
+				EList<RunnableItem> runnableItemList = null;
+				//Judge whether, this CallSequenceItem is CallRunnable
+				for (CallSequenceItem callSequenceItem : callSequence) {
+					if (TaskRunnableCall.class.isInstance(callSequenceItem)) {
+						TaskRunnableCall calledRunnable = TaskRunnableCall.class.cast(callSequenceItem);
+					
+						runnable = calledRunnable.getRunnable();
+						runnableItemList = runnable.getRunnableItems();
+						for (RunnableItem runnableItem : runnableItemList) {
+							if (RunnableInstructions.class.isInstance(runnableItem)) {
+								RunnableInstructions runnableInstructions = RunnableInstructions.class.cast(runnableItem);
+								
+								Instructions instructions = runnableInstructions.getDefault();
+								Deviation<LongObject> deviation = null;
+								long deviationLowerBound = 0;
+								long deviationUpperBound = 0;
+								if (InstructionsDeviation.class.isInstance(instructions)) {
+									InstructionsDeviation instructionsDeviation = InstructionsDeviation.class.cast(instructions);
+									
+									deviation = instructionsDeviation.getDeviation();
+									deviationLowerBound = deviation.getLowerBound().getValue();
+									deviationUpperBound = deviation.getUpperBound().getValue();
+									
+									taskBCET = taskBCET + deviationLowerBound;
+									taskWCET = taskWCET + deviationUpperBound;
+								}
+								
+							}
+						}
+						
+					}
+
+				}	
+			//Display WCET and BCET of each task 	
+			this.log.info("WCET of this Task " + taskName +" is : " + taskWCET );
+			this.log.info("BCET of this Task " + taskName +" is : " + taskBCET + "\r" );
+			//Unit Conversion from Instruction Cycles to mS (millisecond)
+			long executionCycles = taskWCET;
+			double WCETinmS = runUnitConversion(ctx, executionCycles);
+			this.log.info("WCET of this Task " + taskName +" in MilliSecond is : " + WCETinmS );
+
+			
+			}	
 		}
 		
 		
@@ -292,8 +324,8 @@ public class LWcomponent_new extends WorkflowComponent{
 			
 		}
 */
-		//new getCallList() method
-		private EList<CallSequenceItem> getCallList(Task task) {
+		//create new getCallList() method as before, which uses Task as Parameter
+		private EList<CallSequenceItem> getCallList_new(Task task) {
 			CallSequence cseq = null;
 			
 			CallGraph cgraph = task.getCallGraph();
@@ -302,7 +334,6 @@ public class LWcomponent_new extends WorkflowComponent{
 				 cseq = CallSequence.class.cast(entry);
 			 	}
 			return cseq.getCalls();
-			
 		}
 		
 /*	++++++++++++++++++++++++++		
@@ -860,7 +891,24 @@ public class LWcomponent_new extends WorkflowComponent{
 			return sortedTasksByPrio;
 		}
 		
-		
+		//Unit Consersion from Instruction Cycles to mS
+		//In this method we use some other method, where exists problem, if we set more than 1 type of CoreType. Because in those method we search for all types but just return the last one
+		//But in our Model, we have just one kind of CoreType, therefore, we can use this method anyway
+		private double runUnitConversion(Context ctx, long executionCycles) {
+			float IPC = getIPC(ctx);
+			Frequency frequency = getPrescalerQuartzFrequency(ctx);
+			double frequencyValue = frequency.getValue();
+			
+			double WCETinmS = 0;
+			double denominator = 0;
+			//long BCETinmS = 0;
+			
+			//WCETinmS = executionCycles/(IPC * frequency);
+			//Here we define the Unit of Frequency is MHz
+			denominator = IPC * frequencyValue;
+			WCETinmS = executionCycles/denominator;
+			return WCETinmS;
+		}
 		
 		
 }
