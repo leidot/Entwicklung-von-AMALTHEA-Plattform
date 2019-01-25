@@ -142,9 +142,9 @@ public class LWcomponent_new extends WorkflowComponent{
 		Frequency frequency = getPrescalerQuartzFrequency(ctx);
 		this.log.info("Frequency of this Quartz: " + frequency);
 		//get Value and Unit of Frequency of Quartz
-		double frequencyValue = getFrequencyValue(ctx);
+		double coreFrequency = getCoreFrequency(ctx);
 		FrequencyUnit frequencyUnit = getFrequencyUnit(ctx);
-		this.log.info("FrequencyValue is: " + frequencyValue + " The Unit is :" + frequencyUnit);
+		this.log.info("FrequencyValue is: " + coreFrequency + " The Unit is :" + frequencyUnit);
 		
 		//get "Computing Power" Info from CoreType
 		Value computingPower = getComputingPower(ctx);
@@ -176,7 +176,9 @@ public class LWcomponent_new extends WorkflowComponent{
 		
 		for (String prio : sortedTasksByPrio.keySet()) {
 			ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
-			this.log.info("Task List of this priority levle" + prio + " is : " + arrayList );
+			this.log.info("Task List of this priority levle" + prio + " is : " + arrayList);
+			this.log.info("Remember to set MHz as Unit for Frequency in CoreType");
+
 			for (Task task : arrayList) {
 				String taskName = task.getName();
 				long taskWCET = 0;
@@ -225,12 +227,20 @@ public class LWcomponent_new extends WorkflowComponent{
 
 				}	
 			//Display WCET and BCET of each task 	
-			this.log.info("WCET of this Task " + taskName +" is : " + taskWCET );
-			this.log.info("BCET of this Task " + taskName +" is : " + taskBCET + "\r" );
+			this.log.info("WCET of this Task '" + taskName +"' is : " + taskWCET );
+			this.log.info("BCET of this Task '" + taskName +"' is : " + taskBCET );
+			this.log.info("The Unit is 'Instrcution Cycles'");
 			//Unit Conversion from Instruction Cycles to mS (millisecond)
 			long executionCycles = taskWCET;
 			double WCETinmS = runUnitConversion(ctx, executionCycles);
-			this.log.info("WCET of this Task " + taskName +" in MilliSecond is : " + WCETinmS );
+			this.log.info("WCET of this Task '" + taskName +"' in MilliSecond is : " + WCETinmS + " mS");
+			this.log.info("The Unit is MilliSecond, mS");
+
+			executionCycles = taskBCET;
+			double BCETinmS = runUnitConversion(ctx, executionCycles);
+			this.log.info("BCET of this Task '" + taskName +"' in MilliSecond is : " + BCETinmS + " mS");
+			this.log.info("The Unit is MilliSecond, mS" + "\r");
+
 
 			
 			}	
@@ -711,11 +721,16 @@ public class LWcomponent_new extends WorkflowComponent{
 			return frequency;
 		}
 		//get Value of Frequency
-		private double getFrequencyValue(Context ctx) {
+		//whats more, we need the product from Quartzfrequency and Clock Ratio of prescaler, therefore we add ClockRatio 
+		private double getCoreFrequency(Context ctx) {
 			Frequency frequency = getPrescalerQuartzFrequency(ctx);
-			
+			double clockRatio = getPrescalerClockRatio(ctx);
+
 			double frequencyValue = frequency.getValue();
-			return frequencyValue;
+			double coreFrequency = clockRatio * frequencyValue;
+			
+			return coreFrequency;
+			//return frequencyValue;
 		}
 		//get Unit of Frequency
 		private FrequencyUnit getFrequencyUnit(Context ctx) {
@@ -896,17 +911,18 @@ public class LWcomponent_new extends WorkflowComponent{
 		//But in our Model, we have just one kind of CoreType, therefore, we can use this method anyway
 		private double runUnitConversion(Context ctx, long executionCycles) {
 			float IPC = getIPC(ctx);
-			Frequency frequency = getPrescalerQuartzFrequency(ctx);
-			double frequencyValue = frequency.getValue();
-			
+			//Frequency frequency = getPrescalerQuartzFrequency(ctx);
+			//double frequencyValue = frequency.getValue();
+			double coreFrequency = getCoreFrequency(ctx);
 			double WCETinmS = 0;
 			double denominator = 0;
 			//long BCETinmS = 0;
 			
 			//WCETinmS = executionCycles/(IPC * frequency);
 			//Here we define the Unit of Frequency is MHz
-			denominator = IPC * frequencyValue;
-			WCETinmS = executionCycles/denominator;
+			denominator = IPC * coreFrequency;
+			//We use constant 1000, because we need to gurantee the Unit of time is MilliSecond
+			WCETinmS = (executionCycles/denominator)/1000;
 			return WCETinmS;
 		}
 		
