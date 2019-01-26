@@ -45,6 +45,7 @@ import org.eclipse.app4mc.amalthea.model.Stimulus;
 import org.eclipse.app4mc.amalthea.model.Task;
 import org.eclipse.app4mc.amalthea.model.TaskRunnableCall;
 import org.eclipse.app4mc.amalthea.model.Time;
+import org.eclipse.app4mc.amalthea.model.TimeUnit;
 import org.eclipse.app4mc.amalthea.model.Value;
 import org.eclipse.app4mc.amalthea.workflow.core.Context;
 import org.eclipse.app4mc.amalthea.workflow.core.WorkflowComponent;
@@ -110,7 +111,10 @@ public class LWcomponent_new extends WorkflowComponent{
 		Counter counter = getTaskCounter(ctx);
 		this.log.info("This Task will be acitivated by : " + counter +"-th Processing of precedent Task");
 */
-		
+		//get the set of Task and its InterProcessTrigger
+		TreeMap<String, String> setTaskWithInterProcessTrigger = setTaskwithInterProcessTrigger(ctx);
+		this.log.info("This Set is : " + setTaskWithInterProcessTrigger );
+
 		
 		/*+++++++++++++++++++++++++
 		 * Operation in HWModel
@@ -173,7 +177,8 @@ public class LWcomponent_new extends WorkflowComponent{
 		//Sorting Tasks according to Priority level ("1", "2",..."9", from high to low)	
 		//In Amalthea model we shall limit the priority of task between 1 and 9, because we use String as data type, which makes a difference in comparing datas.
 		SortedMap<String, ArrayList<Task>> sortedTasksByPrio = getSortedMap(ctx);
-		
+		TreeMap<String, String> mapOfTaskWithInterProcessTrigger = setTaskWithInterProcessTrigger;
+	
 		for (String prio : sortedTasksByPrio.keySet()) {
 			ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
 			this.log.info("Task List of this priority levle" + prio + " is : " + arrayList);
@@ -183,49 +188,67 @@ public class LWcomponent_new extends WorkflowComponent{
 				String taskName = task.getName();
 				long taskWCET = 0;
 				long taskBCET = 0;
-				//EList<Stimulus> taskStimuliList = task.getStimuli();
-				//get WCET of single Task
 				
-				//下面这一行中的函数getCallList有问题，不同的Task得到的结果居然是一样的
-				//EList<CallSequenceItem> callSequence = getCallList(ctx);
-				//下面的构造函数就正确了，因为我们采用了形参，而不是采用Context
-				EList<CallSequenceItem> callSequence = getCallList_new(task);
-				this.log.info("Call Sequence of this Task" + taskName + " is : " + callSequence);
+				EList<Stimulus> taskStimuliList = task.getStimuli();
+				//Despite we have a list of Stimulus for each task, but actually in Amalthea model we have just one Stimulus in the list
+				for (Stimulus stimulus : taskStimuliList) {
+					if (PeriodicStimulus.class.isInstance(stimulus)) {
+						PeriodicStimulus periodStimulus = (PeriodicStimulus) stimulus;
+						
+						//get WCET and BCET of single Task
+						taskWCET = getWCETinmS(ctx, task);
+						taskBCET = getBCETinmS(ctx, task);
+						
+						//get Period of this Task
+						Time period = periodStimulus.getRecurrence();
+						this.log.info("Period of this Task is :" + period);
+						TimeUnit periodUnti = period.getUnit();
+						this.log.info("The Unit of this Task is :" + periodUnti);
+
+					}
 				
-				Runnable runnable = null;
-				EList<RunnableItem> runnableItemList = null;
-				//Judge whether, this CallSequenceItem is CallRunnable
-				for (CallSequenceItem callSequenceItem : callSequence) {
-					if (TaskRunnableCall.class.isInstance(callSequenceItem)) {
-						TaskRunnableCall calledRunnable = TaskRunnableCall.class.cast(callSequenceItem);
-					
-						runnable = calledRunnable.getRunnable();
-						runnableItemList = runnable.getRunnableItems();
-						for (RunnableItem runnableItem : runnableItemList) {
-							if (RunnableInstructions.class.isInstance(runnableItem)) {
-								RunnableInstructions runnableInstructions = RunnableInstructions.class.cast(runnableItem);
-								
-								Instructions instructions = runnableInstructions.getDefault();
-								Deviation<LongObject> deviation = null;
-								long deviationLowerBound = 0;
-								long deviationUpperBound = 0;
-								if (InstructionsDeviation.class.isInstance(instructions)) {
-									InstructionsDeviation instructionsDeviation = InstructionsDeviation.class.cast(instructions);
-									
-									deviation = instructionsDeviation.getDeviation();
-									deviationLowerBound = deviation.getLowerBound().getValue();
-									deviationUpperBound = deviation.getUpperBound().getValue();
-									
-									taskBCET = taskBCET + deviationLowerBound;
-									taskWCET = taskWCET + deviationUpperBound;
-								}
-								
-							}
+			
+				else if (InterProcessStimulus.class.isInstance(stimulus)) {
+						 InterProcessStimulus interProcStimulus = (InterProcessStimulus) stimulus;
+						 
+						//get WCET and BCET of single Task
+						taskWCET = getWCETinmS(ctx, task);
+						taskBCET = getBCETinmS(ctx, task); 
+						 
+						//get Period of this Task
+						//Here we assume, that in this Trigger list there is only one InterProcessTrigger. In other words, this task will only be activated by one another task
+						EList<InterProcessTrigger> interProcessTriggerList = interProcStimulus.getExplicitTriggers();
+						Counter counter = interProcStimulus.getCounter();
+						for (InterProcessTrigger interProcessTrigger : interProcessTriggerList) {
+							interProcessTrigger = InterProcessTrigger.class.cast(interProcessTrigger);
+							
+							String interProcessTriggerString = interProcessTrigger.toString();
+							String taskNameFromMap = mapOfTaskWithInterProcessTrigger.get(interProcessTriggerString);
+							
+							long counterValue = counter.getPrescaler();
+							this.log.info("counterValue is  :" + counterValue);
+							this.log.info("Name of this Task is :" + taskNameFromMap);
+							Task precedentTask = getTaskThroughTaskName(ctx, taskNameFromMap);
+							this.log.info("The precedent Task of current Task is -------->" + precedentTask );
+						
+							Time periodOfPrecedentTask = getTaskPeriod(precedentTask);
+							TimeUnit periodUnitOfPrecedentTask = periodOfPrecedentTask.getUnit();
+							this.log.info("The Period of the precedent Task '" + "'" + precedentTask + " is -------->" + periodOfPrecedentTask );
+							//This conversion from BigInteger to long may not work or false result
+						
+							long periodOfPrecedentTaskValue = periodOfPrecedentTask.getValue().longValue();
+							long periodOfCurrentTask = periodOfPrecedentTaskValue * counterValue;
+							this.log.info("The Period of this current Task is -------->" + periodOfCurrentTask + " " + periodUnitOfPrecedentTask );
+
+							
 						}
 						
-					}
-
-				}	
+						
+						
+						}
+					//processTaskInterProcessStimulus(prio, taskName, task, stimulus);
+				}
+			
 			//Display WCET and BCET of each task 	
 			this.log.info("WCET of this Task '" + taskName +"' is : " + taskWCET );
 			this.log.info("BCET of this Task '" + taskName +"' is : " + taskBCET );
@@ -242,12 +265,12 @@ public class LWcomponent_new extends WorkflowComponent{
 			this.log.info("The Unit is MilliSecond, mS" + "\r");
 
 
-			
+					
 			}	
-		}
+		} 
 		
-		
-		
+	
+	
 	
 		
 		
@@ -562,14 +585,15 @@ public class LWcomponent_new extends WorkflowComponent{
 		  */
 		
 		//get Period from Task, if this task has PeriodStimulus
-		private Time getTaskPeriod(Context ctx) {
-			EList<Task> taskList = getTasks(ctx);
+		//Here i have changed the original function. Now through this function i can get Period from single periodic Task
+		private Time getTaskPeriod(Task task) {
+			//EList<Task> taskList = getTasks(ctx);
 			EList<Stimulus> stimulusList = null;
 			PeriodicStimulus periodicStimulus = null;
 			InterProcessStimulus interProcessStimulus = null;
 			Time period = null;
 			//Counter counter = null;
-			for (Task task : taskList) {
+			//for (Task task : taskList) {
 				stimulusList = task.getStimuli();
 				for (Stimulus stimulus : stimulusList) {
 					if (PeriodicStimulus.class.isInstance(stimulus)) {
@@ -584,7 +608,7 @@ public class LWcomponent_new extends WorkflowComponent{
 						//period = counter*
 					//}
 				}
-			}
+			//}
 			return period;
 		}
 		
@@ -924,6 +948,138 @@ public class LWcomponent_new extends WorkflowComponent{
 			//We use constant 1000, because we need to gurantee the Unit of time is MilliSecond
 			WCETinmS = (executionCycles/denominator)/1000;
 			return WCETinmS;
+		}
+		
+		//Method for calculating WCETinmS
+		private long getWCETinmS(Context ctx, Task task) {
+			//下面这一行中的函数getCallList有问题，不同的Task得到的结果居然是一样的
+			//EList<CallSequenceItem> callSequence = getCallList(ctx);
+			//下面的构造函数就正确了，因为我们采用了形参，而不是采用Context
+			EList<CallSequenceItem> callSequence = getCallList_new(task);
+			//this.log.info("Call Sequence of this Task" + taskName + " is : " + callSequence);
+			long taskwcet = 0;
+			Runnable runnable = null;
+			EList<RunnableItem> runnableItemList = null;
+			//Judge whether, this CallSequenceItem is CallRunnable
+			for (CallSequenceItem callSequenceItem : callSequence) {
+				if (TaskRunnableCall.class.isInstance(callSequenceItem)) {
+					TaskRunnableCall calledRunnable = TaskRunnableCall.class.cast(callSequenceItem);
+		
+					runnable = calledRunnable.getRunnable();
+					runnableItemList = runnable.getRunnableItems();
+					for (RunnableItem runnableItem : runnableItemList) {
+						if (RunnableInstructions.class.isInstance(runnableItem)) {
+							RunnableInstructions runnableInstructions = RunnableInstructions.class.cast(runnableItem);
+					
+							Instructions instructions = runnableInstructions.getDefault();
+							Deviation<LongObject> deviation = null;
+							//long deviationLowerBound = 0;
+							long deviationUpperBound = 0;
+							if (InstructionsDeviation.class.isInstance(instructions)) {
+								InstructionsDeviation instructionsDeviation = InstructionsDeviation.class.cast(instructions);
+								
+								deviation = instructionsDeviation.getDeviation();
+								//deviationLowerBound = deviation.getLowerBound().getValue();
+								deviationUpperBound = deviation.getUpperBound().getValue();
+								
+								//taskBCET = taskBCET + deviationLowerBound;
+								taskwcet = taskwcet + deviationUpperBound;
+							}
+						}
+					}
+				}
+			}
+			return taskwcet;
+		}
+		
+		//Method for calculating BCETinmS
+		private long getBCETinmS(Context ctx, Task task) {
+			//下面这一行中的函数getCallList有问题，不同的Task得到的结果居然是一样的
+			//EList<CallSequenceItem> callSequence = getCallList(ctx);
+			//下面的构造函数就正确了，因为我们采用了形参，而不是采用Context
+			EList<CallSequenceItem> callSequence = getCallList_new(task);
+			//this.log.info("Call Sequence of this Task" + taskName + " is : " + callSequence);
+			//long taskwcet = 0;
+			long taskbcet = 0;
+			Runnable runnable = null;
+			EList<RunnableItem> runnableItemList = null;
+			//Judge whether, this CallSequenceItem is CallRunnable
+			for (CallSequenceItem callSequenceItem : callSequence) {
+				if (TaskRunnableCall.class.isInstance(callSequenceItem)) {
+					TaskRunnableCall calledRunnable = TaskRunnableCall.class.cast(callSequenceItem);
+		
+					runnable = calledRunnable.getRunnable();
+					runnableItemList = runnable.getRunnableItems();
+					for (RunnableItem runnableItem : runnableItemList) {
+						if (RunnableInstructions.class.isInstance(runnableItem)) {
+							RunnableInstructions runnableInstructions = RunnableInstructions.class.cast(runnableItem);
+					
+							Instructions instructions = runnableInstructions.getDefault();
+							Deviation<LongObject> deviation = null;
+							long deviationLowerBound = 0;
+							//long deviationUpperBound = 0;
+							if (InstructionsDeviation.class.isInstance(instructions)) {
+								InstructionsDeviation instructionsDeviation = InstructionsDeviation.class.cast(instructions);
+								
+								deviation = instructionsDeviation.getDeviation();
+								deviationLowerBound = deviation.getLowerBound().getValue();
+								//deviationUpperBound = deviation.getUpperBound().getValue();
+								
+								taskbcet = taskbcet + deviationLowerBound;
+								//taskwcet = taskwcet + deviationUpperBound;
+							}
+						}
+					}
+				}
+			}
+			return taskbcet;
+		}
+		
+		//set a Map for task and its InterProcessTrigger, if this task has a InterProcessTrigger
+		//private TreeMap<String, InterProcessTrigger> setTaskwithInterProcessTrigger(Context ctx) {
+		private TreeMap<String, String> setTaskwithInterProcessTrigger(Context ctx) {
+			EList<Task> taskList = getTasks(ctx);
+			TreeMap <String, String> taskwithinterprocesstrigger = new TreeMap<>();
+			CallSequence cseq = null;
+			for (Task task : taskList) {
+				String taskName = task.getName();
+				
+				InterProcessTrigger interProcessTrigger = null; 
+				CallGraph callGraph = task.getCallGraph();
+				EList<GraphEntryBase> entry = callGraph.getGraphEntries();
+				for (GraphEntryBase graphEntryBase : entry) {
+					if(CallSequence.class.isInstance(graphEntryBase))
+						cseq  = CallSequence.class.cast(graphEntryBase);
+						
+					EList<CallSequenceItem> calledSequences = cseq.getCalls();
+						for (CallSequenceItem callSequenceItem : calledSequences) {
+							if (InterProcessTrigger.class.isInstance(callSequenceItem)) {
+								interProcessTrigger = InterProcessTrigger.class.cast(callSequenceItem);
+								
+								String interProcessTriggerString = interProcessTrigger.toString();
+								//taskwithinterprocesstrigger.put(taskName, interProcessTriggerString);
+								taskwithinterprocesstrigger.put(interProcessTriggerString, taskName);
+							}
+						}
+				}
+			}	
+				
+			this.log.info("A set of Task and its InterProcessTrigger :" + taskwithinterprocesstrigger.toString());
+			return taskwithinterprocesstrigger;
+		}
+		
+		//search task, which has a InterProcessTrigger, according to existed taskName
+		private Task getTaskThroughTaskName(Context ctx, String taskNameString) {
+			EList<Task> taskList = getTasks(ctx);
+			Task k = null;
+			for (Task task : taskList) {
+				String tName = task.getName();
+				if (tName == taskNameString) {
+					
+				 k = task;
+				}
+			}
+			return k;
 		}
 		
 		
