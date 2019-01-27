@@ -52,6 +52,7 @@ import org.eclipse.app4mc.amalthea.workflow.core.WorkflowComponent;
 import org.eclipse.app4mc.amalthea.workflow.core.exception.WorkflowException;
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.common.util.EMap;
+import org.eclipse.emf.ecore.change.ChangePackage.Literals;
 import org.eclipse.swt.internal.mozilla.Execute;
 import org.eclipse.swt.internal.win32.MCHITTESTINFO;
 import org.eclipse.ui.keys.Key;
@@ -177,7 +178,7 @@ public class LWcomponent_new extends WorkflowComponent{
 		//Sorting Tasks according to Priority level ("1", "2",..."9", from high to low)	
 		//In Amalthea model we shall limit the priority of task between 1 and 9, because we use String as data type, which makes a difference in comparing datas.
 		SortedMap<String, ArrayList<Task>> sortedTasksByPrio = getSortedMap(ctx);
-		TreeMap<String, String> mapOfTaskWithInterProcessTrigger = setTaskWithInterProcessTrigger;
+		TreeMap<String, String> mapOfTaskWithInterProcessTrigger = setTaskwithInterProcessTrigger(ctx);
 	
 		for (String prio : sortedTasksByPrio.keySet()) {
 			ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
@@ -202,9 +203,21 @@ public class LWcomponent_new extends WorkflowComponent{
 						//get Period of this Task
 						Time period = periodStimulus.getRecurrence();
 						this.log.info("Period of this Task is :" + period);
-						TimeUnit periodUnti = period.getUnit();
-						this.log.info("The Unit of this Task is :" + periodUnti);
+						TimeUnit periodUnit = period.getUnit();
+						this.log.info("The Unit of this Task is :" + periodUnit);
+						
+						//get Write Access Time of Single Task
+						//We assume that Write Access of Critical Section will be blocked by other Task with lower Priority, for Reading Access would not be blocked
+						//Here we assume, that Write Access to all Critical Section during each task would lead to Blocking.
+						//String writeLabelList = getWriteLabelList(task);
+						ArrayList<Label> writeLabelList = getWriteLabelList(task);
+						this.log.info("The List of Write Label in task '" + taskName +"' is :"+ writeLabelList);
+						//Calculate the total Blocking Time of this Task
+						//Through Method calculateBlockingTime we have set the Unit of blockingTime in milliSecond
+						double blockingTime = calculateBlockingTime(writeLabelList, ctx);
+						this.log.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS");
 
+						
 					}
 				
 			
@@ -227,7 +240,8 @@ public class LWcomponent_new extends WorkflowComponent{
 							
 							long counterValue = counter.getPrescaler();
 							this.log.info("counterValue is  :" + counterValue);
-							this.log.info("Name of this Task is :" + taskNameFromMap);
+							//this.log.info("Name of this Task is :" + taskNameFromMap);
+							this.log.info("Name of this Task is :" + taskName);
 							Task precedentTask = getTaskThroughTaskName(ctx, taskNameFromMap);
 							this.log.info("The precedent Task of current Task is -------->" + precedentTask );
 						
@@ -240,6 +254,16 @@ public class LWcomponent_new extends WorkflowComponent{
 							long periodOfCurrentTask = periodOfPrecedentTaskValue * counterValue;
 							this.log.info("The Period of this current Task is -------->" + periodOfCurrentTask + " " + periodUnitOfPrecedentTask );
 
+							//get Write Access Time of Single Task
+							//We assume that Write Access of Critical Section will be blocked by other Task with lower Priority, for Reading Access would not be blocked
+							//Here we assume, that Write Access to all Critical Section during each task would lead to Blocking.
+							//String writeLabelList = getWriteLabelList(task);
+							ArrayList<Label> writeLabelList = getWriteLabelList(task);
+							this.log.info("The List of Write Label in task '" + taskName +"' is :"+ writeLabelList);
+							//Calculate the total Blocking Time of this Task
+							//Through Method calculateBlockingTime we have set the Unit of blockingTime in milliSecond
+							double blockingTime = calculateBlockingTime(writeLabelList, ctx);
+							this.log.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS");
 							
 						}
 						
@@ -269,7 +293,7 @@ public class LWcomponent_new extends WorkflowComponent{
 			}	
 		} 
 		
-	
+
 	
 	
 		
@@ -820,6 +844,10 @@ public class LWcomponent_new extends WorkflowComponent{
 			org.eclipse.app4mc.amalthea.model.MemoryType memoryType = null;
 			EMap<String, Value> memoryTypeCustomProperty = null;
 			Value dataRateValue = null;
+			
+			//String dataRateValue = null;
+			//long dataRate = 0;
+			
 			for (Memory memory : memoryList) {
 				
 				memoryType = memory.getType();
@@ -828,6 +856,7 @@ public class LWcomponent_new extends WorkflowComponent{
 				if (memoryTypeCustomProperty.containsKey("Data Rate")) {
 					
 					dataRateValue = memoryTypeCustomProperty.get("Data Rate");
+					//dataRateValue = memoryTypeCustomProperty.get("Data Rate").toString();
 				}
 			}
 			return dataRateValue;
@@ -1082,5 +1111,91 @@ public class LWcomponent_new extends WorkflowComponent{
 			return k;
 		}
 		
+		//get Elist for all Write Access in a Task and return this List
+		private ArrayList<Label> getWriteLabelList(Task task) {
+		//private String getWriteLabelList(Task task) {
+			ArrayList<Label> writeLabelList = new ArrayList<Label>();
+			String literal = null;
+			//EList<Label> writeLabelList = null;
+			CallGraph callGraph = task.getCallGraph();
+			EList<GraphEntryBase> entry = callGraph.getGraphEntries();
+			for (GraphEntryBase graphEntryBase : entry) {
+				CallSequence cseq = CallSequence.class.cast(graphEntryBase);
+				
+				EList<CallSequenceItem> callSequenceItemList = cseq.getCalls();
+				for (CallSequenceItem callSequenceItem : callSequenceItemList) {
+					if (TaskRunnableCall.class.isInstance(callSequenceItem)) {
+						TaskRunnableCall calledRunnable = TaskRunnableCall.class.cast(callSequenceItem);
+						
+						Runnable runnable = calledRunnable.getRunnable();
+						EList<RunnableItem> runnableItemList = runnable.getRunnableItems();
+						for (RunnableItem runnableItem : runnableItemList) {
+							if (LabelAccess.class.isInstance(runnableItem)) {
+								LabelAccess labelAccess = LabelAccess.class.cast(runnableItem);
+								
+								LabelAccessEnum accessMode = labelAccess.getAccess();
+								//String literal = accessMode.getLiteral();
+								literal = accessMode.getLiteral();
+								Label label = labelAccess.getData();
+								//this.log.info("Literal is : " + literal);
+								if (literal == "write") {
+									
+									writeLabelList.add(label);
+									}
+							}
+						}
+					}
+				}
+			}
+			return writeLabelList;
+			//return literal;
+		} 
 		
+		//Calculate total Write Access Time for each Task
+		//We assume that the Unit of LabelSize is Bit
+		//We assume that the Unit of DataRate is GB/S, here B means Byte
+		private double calculateBlockingTime(ArrayList<Label> writeLabelList, Context ctx) {
+			String dataRateString = null;
+			float blockingTime = 0;
+			float dataRateLong = 0;
+			if (getDataRateUnderHwSystem(ctx) != null) {
+				//dataRateString = getDataRateUnderHwSystem(ctx).toString();
+				//Because the input String include (String), so we have to exclude the beginning 8 bit
+				//dataRateString = getDataRateUnderHwSystem(ctx).toString();
+				dataRateString = getDataRateUnderHwSystem(ctx).toString().substring(9);
+			}
+			else if (getDataRateUnderEcu(ctx) != null) {
+				//dataRateString = getDataRateUnderEcu(ctx).toString();
+				dataRateString = getDataRateUnderEcu(ctx).toString().substring(9);
+			}
+			else if (getDataRateUnderMicrocontroller(ctx)!= null) {
+				//dataRateString = getDataRateUnderMicrocontroller(ctx).toString();
+				dataRateString = getDataRateUnderMicrocontroller(ctx).toString().substring(9);
+			}
+			else if (getDataRateUnderCore(ctx) != null) {
+				//dataRateString = getDataRateUnderCore(ctx).toString();
+				dataRateString = getDataRateUnderCore(ctx).toString().substring(9);
+
+			}
+			//change Data Type from String to float
+			//dataRateLong = Long.valueOf(dataRateString);
+			dataRateLong = Float.parseFloat(dataRateString);
+			
+			//Remember that the Unit of LabelSize is Bit
+			long totalLabelValue = 0;
+			for (Label label : writeLabelList) {
+				
+				 DataSize labelSize = label.getSize();
+				 long labelValue = labelSize.getValue().longValue();
+				 
+				 totalLabelValue += labelValue; 
+				 }
+			//Here we must have a conversion Bit/(GB/S), exactly ms/8000000
+			//The Unit of totalLabelValue is milliSecond
+			totalLabelValue = totalLabelValue/8000000;
+			//The Unit is NanoSecond with number 8
+			//totalLabelValue = totalLabelValue/8;
+			blockingTime = totalLabelValue/dataRateLong;
+			return blockingTime;
+		}
 }
