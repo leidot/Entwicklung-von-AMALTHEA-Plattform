@@ -56,7 +56,7 @@ import org.eclipse.emf.ecore.change.ChangePackage.Literals;
 import org.eclipse.swt.internal.mozilla.Execute;
 import org.eclipse.swt.internal.win32.MCHITTESTINFO;
 import org.eclipse.ui.keys.Key;
-//import org.eclipse.ui.keys.Key;
+
 
 public class LWcomponent_new extends WorkflowComponent{
 	
@@ -74,7 +74,9 @@ public class LWcomponent_new extends WorkflowComponent{
 		}
 		this.log.info("Number of tasks in model: " + getAmaltheaModel(ctx).getSwModel().getTasks().size());
 		this.log.info("Number of tasks in model: " + getAmaltheaModel(ctx).toString());
- /*      
+ /*     
+  *     //Here are Code, where i use to learn how to find every parameter from SwModel 
+		
 		//get TaskList in SWModel
 		EList<Task> taskList = getTasks(ctx);
 		this.log.info("taskList in model: " + taskList);
@@ -112,10 +114,13 @@ public class LWcomponent_new extends WorkflowComponent{
 		Counter counter = getTaskCounter(ctx);
 		this.log.info("This Task will be acitivated by : " + counter +"-th Processing of precedent Task");
 */
-		//get the set of Task and its InterProcessTrigger
+		
+		//Build a set of Task and its InterProcessTrigger, which will activate InterProcessStimulus for its subsequent Task
+		//With this method we can find the precedent Task of current Task, which is activated through the InterProcessStimulus
 		TreeMap<String, String> setTaskWithInterProcessTrigger = setTaskwithInterProcessTrigger(ctx);
 		this.log.info("This Set is : " + setTaskWithInterProcessTrigger );
 
+		
 		
 		/*+++++++++++++++++++++++++
 		 * Operation in HWModel
@@ -171,19 +176,24 @@ public class LWcomponent_new extends WorkflowComponent{
 		Value dataRateUnderCore = getDataRateUnderCore(ctx);
 		this.log.info("The Value of Data Rate from Memory under Core is: " + dataRateUnderCore);
 
-		/*+++++++++++++++++++++++++
+		
+		/*+++++++++++++++++++++++++++++++++++++++++++++++++++
+		 * ++++++++++++++++++++++++++++++++++++++++++++++++++
 		 * Main Function starts here
-		 +++++++++++++++++++++++++*/	
+		 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+		 ++++++++++++++++++++++++++++++++++++++++++++++++++++*/	
 		
 		//Sorting Tasks according to Priority level ("1", "2",..."9", from high to low)	
-		//In Amalthea model we shall limit the priority of task between 1 and 9, because we use String as data type, which makes a difference in comparing datas.
+		//In Amalthea model we shall limit the priority of task between 1 and 9, because we use String as data type, which makes a difference in comparing data
 		SortedMap<String, ArrayList<Task>> sortedTasksByPrio = getSortedMap(ctx);
+		//Build a set of Task and its InterProcessTrigger, which will activate InterProcessStimulus for its subsequent Task
+		//With this method we can find the precedent Task of current Task, which is activated through the InterProcessStimulus
 		TreeMap<String, String> mapOfTaskWithInterProcessTrigger = setTaskwithInterProcessTrigger(ctx);
 	
 		for (String prio : sortedTasksByPrio.keySet()) {
 			ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
 			this.log.info("Task List of this priority levle" + prio + " is : " + arrayList);
-			this.log.info("Remember to set MHz as Unit for Frequency in CoreType");
+			this.log.info("Remember to set MHz as default Unit for Frequency in CoreType");
 
 			for (Task task : arrayList) {
 				String taskName = task.getName();
@@ -191,15 +201,20 @@ public class LWcomponent_new extends WorkflowComponent{
 				long taskBCET = 0;
 				
 				EList<Stimulus> taskStimuliList = task.getStimuli();
-				//Despite we have a list of Stimulus for each task, but actually in Amalthea model we have just one Stimulus in the list
+				//Despite we have a list of Stimulus for each task, but actually in Task model we have just one Stimulus (maximal one Periodic Stimulus and one InterProcessTrigger Stimulus)in the list
 				for (Stimulus stimulus : taskStimuliList) {
 					if (PeriodicStimulus.class.isInstance(stimulus)) {
 						PeriodicStimulus periodStimulus = (PeriodicStimulus) stimulus;
 						
 						//get WCET and BCET of single Task
-						taskWCET = getWCETinmS(ctx, task);
-						taskBCET = getBCETinmS(ctx, task);
-						
+						taskWCET = getWCETinIC(ctx, task);
+						taskBCET = getBCETinIC(ctx, task);
+						this.log.info("WCET in InstructionCycles is :" + taskWCET + ". BCET in InstructionCycles is :" + taskBCET);
+						//Time Unit Conversion from Instruction Cycles to mS
+						double taskWCETinmS = runUnitConversion(ctx, taskWCET);
+						double taskBCETinmS = runUnitConversion(ctx, taskBCET);
+						this.log.info("WCET in Unit mS is :" + taskWCETinmS + " mS. BCET in Unit mS is :" + taskBCETinmS + " mS");
+
 						//get Period of this Task
 						Time period = periodStimulus.getRecurrence();
 						this.log.info("Period of this Task is :" + period);
@@ -215,7 +230,7 @@ public class LWcomponent_new extends WorkflowComponent{
 						//Calculate the total Blocking Time of this Task
 						//Through Method calculateBlockingTime we have set the Unit of blockingTime in milliSecond
 						double blockingTime = calculateBlockingTime(writeLabelList, ctx);
-						this.log.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS");
+						this.log.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS" + "\r");
 
 						
 					}
@@ -225,9 +240,14 @@ public class LWcomponent_new extends WorkflowComponent{
 						 InterProcessStimulus interProcStimulus = (InterProcessStimulus) stimulus;
 						 
 						//get WCET and BCET of single Task
-						taskWCET = getWCETinmS(ctx, task);
-						taskBCET = getBCETinmS(ctx, task); 
-						 
+						taskWCET = getWCETinIC(ctx, task);
+						taskBCET = getBCETinIC(ctx, task); 
+						this.log.info("WCET in InstructionCycles is :" + taskWCET + ". BCET in InstructionCycles is :" + taskBCET);
+						//Time Unit Conversion from Instruction Cycles to mS
+						double taskWCETinmS = runUnitConversion(ctx, taskWCET);
+						double taskBCETinmS = runUnitConversion(ctx, taskBCET);
+						this.log.info("WCET in Unit mS is :" + taskWCETinmS + " mS. BCET in Unit mS is :" + taskBCETinmS + " mS");
+ 
 						//get Period of this Task
 						//Here we assume, that in this Trigger list there is only one InterProcessTrigger. In other words, this task will only be activated by one another task
 						EList<InterProcessTrigger> interProcessTriggerList = interProcStimulus.getExplicitTriggers();
@@ -238,10 +258,12 @@ public class LWcomponent_new extends WorkflowComponent{
 							String interProcessTriggerString = interProcessTrigger.toString();
 							String taskNameFromMap = mapOfTaskWithInterProcessTrigger.get(interProcessTriggerString);
 							
+							//The Counter comes from InterProcessStimulus, this counter means how often is the current task activated by its precedent task
 							long counterValue = counter.getPrescaler();
 							this.log.info("counterValue is  :" + counterValue);
 							//this.log.info("Name of this Task is :" + taskNameFromMap);
 							this.log.info("Name of this Task is :" + taskName);
+							//get the precedent Task through its name from map mapOfTaskWithInterProcessTrigger
 							Task precedentTask = getTaskThroughTaskName(ctx, taskNameFromMap);
 							this.log.info("The precedent Task of current Task is -------->" + precedentTask );
 						
@@ -254,6 +276,7 @@ public class LWcomponent_new extends WorkflowComponent{
 							long periodOfCurrentTask = periodOfPrecedentTaskValue * counterValue;
 							this.log.info("The Period of this current Task is -------->" + periodOfCurrentTask + " " + periodUnitOfPrecedentTask );
 
+							
 							//get Write Access Time of Single Task
 							//We assume that Write Access of Critical Section will be blocked by other Task with lower Priority, for Reading Access would not be blocked
 							//Here we assume, that Write Access to all Critical Section during each task would lead to Blocking.
@@ -263,7 +286,7 @@ public class LWcomponent_new extends WorkflowComponent{
 							//Calculate the total Blocking Time of this Task
 							//Through Method calculateBlockingTime we have set the Unit of blockingTime in milliSecond
 							double blockingTime = calculateBlockingTime(writeLabelList, ctx);
-							this.log.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS");
+							this.log.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS" + "\r");
 							
 						}
 						
@@ -274,19 +297,20 @@ public class LWcomponent_new extends WorkflowComponent{
 				}
 			
 			//Display WCET and BCET of each task 	
-			this.log.info("WCET of this Task '" + taskName +"' is : " + taskWCET );
-			this.log.info("BCET of this Task '" + taskName +"' is : " + taskBCET );
-			this.log.info("The Unit is 'Instrcution Cycles'");
+			//this.log.info("WCET of this Task '" + taskName +"' is : " + taskWCET );
+			//this.log.info("BCET of this Task '" + taskName +"' is : " + taskBCET );
+			//this.log.info("The Unit is 'Instrcution Cycles'");
+			
 			//Unit Conversion from Instruction Cycles to mS (millisecond)
-			long executionCycles = taskWCET;
-			double WCETinmS = runUnitConversion(ctx, executionCycles);
-			this.log.info("WCET of this Task '" + taskName +"' in MilliSecond is : " + WCETinmS + " mS");
-			this.log.info("The Unit is MilliSecond, mS");
+			//long executionCycles = taskWCET;
+			//double WCETinmS = runUnitConversion(ctx, executionCycles);
+			//this.log.info("WCET of this Task '" + taskName +"' in MilliSecond is : " + WCETinmS + " mS");
+			//this.log.info("The Unit is MilliSecond, mS");
 
-			executionCycles = taskBCET;
-			double BCETinmS = runUnitConversion(ctx, executionCycles);
-			this.log.info("BCET of this Task '" + taskName +"' in MilliSecond is : " + BCETinmS + " mS");
-			this.log.info("The Unit is MilliSecond, mS" + "\r");
+			//executionCycles = taskBCET;
+			//double BCETinmS = runUnitConversion(ctx, executionCycles);
+			//this.log.info("BCET of this Task '" + taskName +"' in MilliSecond is : " + BCETinmS + " mS");
+			//this.log.info("The Unit is MilliSecond, mS" + "\r");
 
 
 					
@@ -979,8 +1003,9 @@ public class LWcomponent_new extends WorkflowComponent{
 			return WCETinmS;
 		}
 		
-		//Method for calculating WCETinmS
-		private long getWCETinmS(Context ctx, Task task) {
+		//Method for calculating WCETinIC, where IC means Instruction Cycles
+		//private long getWCETinmS(Context ctx, Task task) {
+		private long getWCETinIC(Context ctx, Task task) {
 			//下面这一行中的函数getCallList有问题，不同的Task得到的结果居然是一样的
 			//EList<CallSequenceItem> callSequence = getCallList(ctx);
 			//下面的构造函数就正确了，因为我们采用了形参，而不是采用Context
@@ -1021,8 +1046,9 @@ public class LWcomponent_new extends WorkflowComponent{
 			return taskwcet;
 		}
 		
-		//Method for calculating BCETinmS
-		private long getBCETinmS(Context ctx, Task task) {
+		//Method for calculating BCETinIC, IC means Instruction Cycles
+		//private long getBCETinmS(Context ctx, Task task) {
+		private long getBCETinIC(Context ctx, Task task) {
 			//下面这一行中的函数getCallList有问题，不同的Task得到的结果居然是一样的
 			//EList<CallSequenceItem> callSequence = getCallList(ctx);
 			//下面的构造函数就正确了，因为我们采用了形参，而不是采用Context
