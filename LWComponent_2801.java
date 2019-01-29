@@ -1,6 +1,7 @@
 package org.eclipse.app4mc.amalthea.example.workflow.components;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -24,6 +25,7 @@ import org.eclipse.app4mc.amalthea.model.Label;
 import org.eclipse.app4mc.amalthea.model.LabelAccess;
 import org.eclipse.app4mc.amalthea.model.LabelAccessEnum;
 import org.eclipse.app4mc.amalthea.model.LongObject;
+import org.eclipse.app4mc.amalthea.model.MappingModel;
 import org.eclipse.app4mc.amalthea.model.Memory;
 import org.eclipse.app4mc.amalthea.model.Microcontroller;
 import org.eclipse.app4mc.amalthea.model.PeriodicStimulus;
@@ -106,7 +108,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 		for (String prio : sortedTasksByPrio.keySet()) {
 			ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
 			this.log.info("Task List of this priority levle" + prio + " is : " + arrayList);
-			this.log.info("Remember to set MHz as default Unit for Frequency in CoreType");
+			this.log.info("Remember to set MHz as default Unit for Frequency in CoreType" + "\r");
 
 			for (Task task : arrayList) {
 				String taskName = task.getName();
@@ -122,7 +124,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 						//get WCET and BCET of single Task
 						taskWCET = getWCETinIC(ctx, task);
 						taskBCET = getBCETinIC(ctx, task);
-						this.log.info("WCET in InstructionCycles is :" + taskWCET + ". BCET in InstructionCycles is :" + taskBCET);
+						this.log.info("For TASK :" + taskName + " Its WCET in InstructionCycles is :" + taskWCET + ". BCET in InstructionCycles is :" + taskBCET);
 						//Time Unit Conversion from Instruction Cycles to mS
 						double taskWCETinmS = runUnitConversion(ctx, taskWCET);
 						double taskBCETinmS = runUnitConversion(ctx, taskBCET);
@@ -146,9 +148,19 @@ public class LWComponent_2801 extends WorkflowComponent{
 						this.log.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS");
 						this.log.info("Remember we use 'GB/s' as Unit for 'Data Rate' in MemoryType " + "\r");
 
-												
-						
-						
+						//Calculating WCRT of the task						
+						//Find, if this task has highest Priority in its Core
+						Scheduler scheduler = getTaskScheduler(task, ctx);
+						//this.log.info("The Scheduler of specified Task : '" + taskName + "' is :" + scheduler + "\r");
+						//find the task list, where all task are scheduled by the same Scheduler as the specified task
+						//ArrayList<Task> taskListBySched = getTaskWCRT(task, ctx, sortedTasksBySched, sortedTasksByPrio);
+						//this.log.info(taskListBySched);
+						String str1 = "5";
+						String str2 = "7";
+						int a = str1.compareTo(str2);
+						this.log.info("The result is :" + a );
+						double preemptionTime = getTaskWCRT(task, ctx, sortedTasksBySched);
+						this.log.info("Preemption Time is :" + preemptionTime);
 					}
 
 			
@@ -178,7 +190,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 		for (Task task : taskList) {
 			//We must use Value of Priority in form of String in Amalthea Model
 			//In Amalthea Model we must limit the priority value to 9, exactly 1~9. Otherweise "10" is less than "6" because of String.
-			//In Amalthea Model Priority :9 -> 1, exactly from highest to lowest
+			//In Amalthea Model Priority :1 -> 9, exactly from highest to lowest
 			Value prioValue = task.getCustomProperties().get("priority");
 			String prioStr = prioValue.toString();
 			//add, just add a task in ArrayList<Task>, not in TreeMap
@@ -658,6 +670,51 @@ public class LWComponent_2801 extends WorkflowComponent{
 	}
 	
 	
+	// calculate WCRT of single Task
+	// need method "getTaskScheduler"
+	// calculate Preemption time according to task with higher priority 
+	private double getTaskWCRT(Task task, Context ctx, HashMap<String, ArrayList<Task>> sortedTasksByScheduler) {
+	//private ArrayList<Task> getTaskWCRT(Task task, Context ctx, HashMap<String, ArrayList<Task>> sortedTasksByScheduler, SortedMap<String, ArrayList<Task>> sortedTasksByPriority) {
+		
+		String schedulerString = getTaskScheduler(task, ctx).toString();
+		ArrayList<Task> taskListBySched = sortedTasksByScheduler.get(schedulerString);
+		String taskPriorityValue = task.getCustomProperties().get("priority").toString();
+		double totalPreemptionTime = 0;
+		double wcetHigherPrior = 0;
+		
+		for (Task eachtask : taskListBySched) {
+			String prioValue = eachtask.getCustomProperties().get("priority").toString();
+			
+			//字典顺序，"1">""2">"3">"4".....
+			//但是实际上，通过下面的比较器，"1"-"2" = -1,务必要注意
+			//Str1.compareTo(Str2)返回Str1-Str2的值，且结果为int类型
+			int diff = prioValue.compareTo(taskPriorityValue);
+			if (diff < 0) {
+				long wcetICHigherPrior = getWCETinIC(ctx, eachtask);
+				wcetHigherPrior = runUnitConversion(ctx, wcetICHigherPrior);
+				totalPreemptionTime += wcetHigherPrior; 
+
+			}
+		}
+		return totalPreemptionTime;
+		
+	}
+	
+	// method to return a scheduler from the specified task
+	private Scheduler getTaskScheduler(Task task, Context ctx) {
+		EList<TaskAllocation> taskAllocationList = getAmaltheaModel(ctx).getMappingModel().getTaskAllocation();
+		
+		Scheduler scheduler = null;
+		for (TaskAllocation taskAllocation : taskAllocationList) {
+			
+			Task allocatedTask = taskAllocation.getTask();
+			if (allocatedTask == task) {
+				
+				 scheduler = taskAllocation.getScheduler(); 
+			}
+		}
+		return scheduler;
+	}
 	
 	
 }
