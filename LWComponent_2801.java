@@ -1,5 +1,6 @@
 package org.eclipse.app4mc.amalthea.example.workflow.components;
 
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -159,8 +160,19 @@ public class LWComponent_2801 extends WorkflowComponent{
 						String str2 = "7";
 						int a = str1.compareTo(str2);
 						this.log.info("The result is :" + a );
-						double preemptionTime = getTaskWCRT(task, ctx, sortedTasksBySched);
-						this.log.info("Preemption Time is :" + preemptionTime);
+						double b = 0.01;
+						double c = 1.0;
+						double d = c- b;
+						this.log.info(d);
+						
+						double taskWCRT = getTaskWCRT(task, ctx, sortedTasksBySched);
+						this.log.info("WCRT is :" + taskWCRT);
+						
+						
+						//Calculating BCRT of the task
+						
+						
+						
 					}
 
 			
@@ -173,7 +185,8 @@ public class LWComponent_2801 extends WorkflowComponent{
 	
 	}
 	
-	}
+
+		}
 	
 	
 	//++++++++++++++++++++++++++++++++++++++++++++++
@@ -679,8 +692,46 @@ public class LWComponent_2801 extends WorkflowComponent{
 		String schedulerString = getTaskScheduler(task, ctx).toString();
 		ArrayList<Task> taskListBySched = sortedTasksByScheduler.get(schedulerString);
 		String taskPriorityValue = task.getCustomProperties().get("priority").toString();
-		double totalPreemptionTime = 0;
+		//double totalPreemptionTime = 0;
 		double wcetHigherPrior = 0;
+		
+		//get WCET of this current task, which is one parameter of this method
+		long taskWCETinIC = getWCETinIC(ctx, task);
+		double taskWCET = runUnitConversion(ctx, taskWCETinIC);
+		
+		//get Blocking Time of this current task,which is one parameter of this method
+		ArrayList<Label> writeLabelList = getWriteLabelList(task);
+		double blockingTime = calculateBlockingTime(writeLabelList, ctx);
+		
+		//get Period of this current task,which is one parameter of this method
+		long taskPeriodValue = 0;
+		EList<Stimulus> taskStimulusList = task.getStimuli();
+		for (Stimulus stimulus : taskStimulusList) {
+			PeriodicStimulus periodicStimulus = (PeriodicStimulus) stimulus; 
+			
+			Time period = periodicStimulus.getRecurrence();
+			//Take care, the default Unit must be mS
+			taskPeriodValue = period.getValue().longValue();
+			}
+		this.log.info("The period of Current Task '" + task + "' is :" + taskPeriodValue);
+		
+		//Initialization of WCRT of current task
+		//This Value should be a constant, which represents ONLY WCET und Blocking Time of current TASK
+		double initialWCRT = taskWCET + blockingTime;
+		//This variable records the last taskWCRT, get ready to compare with the current taskWCRT
+		double temporaryWCRT = 0;
+		//this.log.info("The WCRT of task '"+ task + "' is :" + taskWCRT);
+		double preempTime = 0;
+		boolean equalJudge = false;
+		
+		//Initialing taskWCRT, which changes with Cycles Number of preemptive Task
+		double taskWCRT = initialWCRT;
+		//ITERATIVE CALCULATION ALGORITHME
+		//while (taskWCRT < taskPeriodValue || ) {
+		do 						{	
+			//record the last taskWCRT, get ready to compare with the current taskWCRT
+			temporaryWCRT = taskWCRT;	
+			double totalPreemptionTime = 0;
 		
 		for (Task eachtask : taskListBySched) {
 			String prioValue = eachtask.getCustomProperties().get("priority").toString();
@@ -690,13 +741,53 @@ public class LWComponent_2801 extends WorkflowComponent{
 			//Str1.compareTo(Str2)返回Str1-Str2的值，且结果为int类型
 			int diff = prioValue.compareTo(taskPriorityValue);
 			if (diff < 0) {
+				// get "Cj" --> wcetHihgerPrior
 				long wcetICHigherPrior = getWCETinIC(ctx, eachtask);
 				wcetHigherPrior = runUnitConversion(ctx, wcetICHigherPrior);
-				totalPreemptionTime += wcetHigherPrior; 
-
+				//totalPreemptionTime += wcetHigherPrior; 
+				
+				//get period Pj
+				long periodValue = 0;
+				EList<Stimulus> stimulusList = eachtask.getStimuli();
+				for (Stimulus stimulus : stimulusList) {
+					PeriodicStimulus periodicStimulus = (PeriodicStimulus) stimulus; 
+					
+					Time period = periodicStimulus.getRecurrence();
+					//Take care, the default Unit must be mS
+					periodValue = period.getValue().longValue();
+					}
+				
+				// "[△/Pj]" term, take the Upper Limit
+				double cycNumber = taskWCRT/periodValue;
+				double cyclesNumber = Math.ceil(cycNumber);
+				this.log.info("Cycles Number is" + cyclesNumber);
+				
+				//"[△/Pj]*Cj" term
+				preempTime = cyclesNumber * wcetHigherPrior;
+				
+				// "∑ [△/Pj]*Cj" term
+				totalPreemptionTime += preempTime; 
+				this.log.info("The totalpreemption time is :" + totalPreemptionTime);
 			}
+			// "∑ [△/Pj]*Cj" term
+			//totalPreemptionTime += preempTime; 
+			//this.log.info("The totalpreemption time is :" + totalPreemptionTime);
 		}
-		return totalPreemptionTime;
+		// "∑ [△/Pj]*Cj" term
+		//totalPreemptionTime += preempTime; 
+		taskWCRT = initialWCRT + totalPreemptionTime;
+		//return totalPreemptionTime;
+		
+		//Judge if WCRT of task equals to last Iteration
+	    equalJudge = equal(taskWCRT, temporaryWCRT);
+		
+	    //If WCRT < Period or WCRT do not change
+		} while (taskWCRT < taskPeriodValue && !equalJudge);
+	//	} while (false);
+		
+		this.log.info("The final WCRT value is :" + temporaryWCRT);
+		//return taskWCRT;
+		return temporaryWCRT;
 		
 	}
 	
@@ -716,5 +807,15 @@ public class LWComponent_2801 extends WorkflowComponent{
 		return scheduler;
 	}
 	
+	private boolean equal(double currentWCRT, double lastWCRT) {
+		
+		double diff = currentWCRT - lastWCRT;
+		
+		if (Math.abs(diff) <= 0.01) {
+			return true;
+		} else {
+			return false;
+		}
+	}
 	
 }
