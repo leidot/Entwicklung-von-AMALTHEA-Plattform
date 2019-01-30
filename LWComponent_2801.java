@@ -807,6 +807,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 		return scheduler;
 	}
 	
+	// method to judge, whether the two variable are equal
 	private boolean equal(double currentWCRT, double lastWCRT) {
 		
 		double diff = currentWCRT - lastWCRT;
@@ -817,5 +818,141 @@ public class LWComponent_2801 extends WorkflowComponent{
 			return false;
 		}
 	}
+	
+	//Method to calculate BCRT of a task
+	private double getTaskBCRT(Task task, Context ctx, HashMap<String, ArrayList<Task>> sortedTasksByScheduler) {
+		
+		// get TaskList according to the same allocated Scheduler
+		String schedulerString = getTaskScheduler(task, ctx).toString();
+		ArrayList<Task> taskListBySched = sortedTasksByScheduler.get(schedulerString);
+		String taskPriorityValue = task.getCustomProperties().get("priority").toString();
+		
+		//double totalPreemptionTime = 0;
+		double bcetHigherPrior = 0;
+		
+		//get BCET of this current task, which is one parameter of this method
+		long taskBCETinIC = getBCETinIC(ctx, task);
+		double taskBCET = runUnitConversion(ctx, taskBCETinIC);
+		
+		//We dont need Blocking Time for calculating BCRT
+		//ArrayList<Label> writeLabelList = getWriteLabelList(task);
+		//double blockingTime = calculateBlockingTime(writeLabelList, ctx);
+		
+		//get Period of this current task,which is one parameter of this method
+		long taskPeriodValue = 0;
+		EList<Stimulus> taskStimulusList = task.getStimuli();
+		for (Stimulus stimulus : taskStimulusList) {
+			PeriodicStimulus periodicStimulus = (PeriodicStimulus) stimulus; 
+			
+			Time period = periodicStimulus.getRecurrence();
+			//Take care, the default Unit must be mS
+			taskPeriodValue = period.getValue().longValue();
+			}
+		this.log.info("The period of Current Task '" + task + "' is :" + taskPeriodValue);
+		
+		//Initialization of BCRT of current task
+		//This Value should be a constant, which represents ONLY BCET of current TASK
+		//double initialWCRT = taskWCET;
+		//This variable records the last taskWCRT, get ready to compare with the current taskWCRT
+		//double temporaryWCRT = 0;
+		//this.log.info("The WCRT of task '"+ task + "' is :" + taskWCRT);
+		//double preempTime = 0;
+		//boolean equalJudge = false;
+		
+		//Initialing taskWCRT, which changes with Cycles Number of preemptive Task
+		//double taskWCRT = initialWCRT;
+		//ITERATIVE CALCULATION ALGORITHME
+		//while (taskWCRT < taskPeriodValue || ) {
+		do 						{	
+			//record the last taskWCRT, get ready to compare with the current taskWCRT
+			//temporaryWCRT = taskWCRT;	
+			//double totalPreemptionTime = 0;
+		
+		for (Task eachtask : taskListBySched) {
+			String prioValue = eachtask.getCustomProperties().get("priority").toString();
+			
+			//字典顺序，"1">""2">"3">"4".....
+			//但是实际上，通过下面的比较器，"1"-"2" = -1,务必要注意
+			//Str1.compareTo(Str2)返回Str1-Str2的值，且结果为int类型
+			int diff = prioValue.compareTo(taskPriorityValue);
+			if (diff < 0) {
+				// get "Cj" --> bcetHihgerPrior
+				long bcetICHigherPrior = getBCETinIC(ctx, eachtask);
+				bcetHigherPrior = runUnitConversion(ctx, bcetICHigherPrior);
+				//totalPreemptionTime += wcetHigherPrior; 
+				
+				//get period Pj
+				long periodValue = 0;
+				EList<Stimulus> stimulusList = eachtask.getStimuli();
+				for (Stimulus stimulus : stimulusList) {
+					PeriodicStimulus periodicStimulus = (PeriodicStimulus) stimulus; 
+					
+					Time period = periodicStimulus.getRecurrence();
+					//Take care, the default Unit must be mS
+					periodValue = period.getValue().longValue();
+					}
+				
+				// get gcd(Pi,Pj) between Task out of for -Cycle and task in for-Cycle
+				long gcdinIC = GCD(taskPeriodValue, periodValue);
+				double gcdinmS = runUnitConversion(ctx, gcdinIC);
+				
+				
+				//Rekurssion for △j, get BCRT of the task, which has higher priority as the specified task, that is the parameter of this method
+				double bcrtHigherPriority = getTaskBCRT(task, ctx, sortedTasksByScheduler);
+				// round down of △j/gcd(Pi,Pj)
+				double temporaryValue = bcrtHigherPriority/gcdinmS;
+				int floorValue = (int) Math.floor(temporaryValue);
+				// max[1,[△/gcd(Pi,Pj)]]
+				long maxValue = Math.max(1, floorValue);
+				//max[,]*gcd()
+				double maxGCD = maxValue * gcdinmS;  
+				// xj, the next activation time
+				double nextActivTime = periodValue - maxGCD;
+				
+				
+				//
+				
+				
+				// "[△/Pj]" term, take the Upper Limit
+				//double cycNumber = taskWCRT/periodValue;
+				//double cyclesNumber = Math.ceil(cycNumber);
+				//this.log.info("Cycles Number is" + cyclesNumber);
+				
+				//"[△/Pj]*Cj" term
+				//preempTime = cyclesNumber * wcetHigherPrior;
+				
+				// "∑ [△/Pj]*Cj" term
+				//totalPreemptionTime += preempTime; 
+				//this.log.info("The totalpreemption time is :" + totalPreemptionTime);
+			}
+			// "∑ [△/Pj]*Cj" term
+			//totalPreemptionTime += preempTime; 
+			//this.log.info("The totalpreemption time is :" + totalPreemptionTime);
+		}
+		// "∑ [△/Pj]*Cj" term
+		//totalPreemptionTime += preempTime; 
+		taskWCRT = initialWCRT + totalPreemptionTime;
+		//return totalPreemptionTime;
+		
+		//Judge if WCRT of task equals to last Iteration
+	    equalJudge = equal(taskWCRT, temporaryWCRT);
+		
+	    //If WCRT < Period or WCRT do not change
+		} while (taskWCRT < taskPeriodValue && !equalJudge);
+	//	} while (false);
+		
+		this.log.info("The final WCRT value is :" + temporaryWCRT);
+		//return taskWCRT;
+		return temporaryWCRT;
+		
+
+	}
+	
+	//get gcd(Pi,Pj)
+	public long GCD(long a, long b) {
+		   if (b==0) return a;
+		   return GCD(b,a%b);
+		}
+	
 	
 }
