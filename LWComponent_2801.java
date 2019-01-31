@@ -64,7 +64,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 			throw new WorkflowException("No proper SWModel available!");
 		}
 		this.log.info("Number of tasks in model: " + getAmaltheaModel(ctx).getSwModel().getTasks().size());
-		this.log.info("Number of tasks in model: " + getAmaltheaModel(ctx).toString());
+		//this.log.info("Number of tasks in model: " + getAmaltheaModel(ctx).toString());
 		
 		/*+++++++++++++++++++++++++
 		 * Operation in HWModel
@@ -84,13 +84,8 @@ public class LWComponent_2801 extends WorkflowComponent{
 			
 			throw new WorkflowException("No proper MappingModel available!");
 		}
-		this.log.info("Start to find tasks in same Core: ");
-		//here i need a private method, so i comment these sentences
-	//	EList<TaskAllocation> taskAllocationList = getAmaltheaModel(ctx).getMappingModel().getTaskAllocation();
-	//	for (TaskAllocation taskAllocation : taskAllocationList) {
-	//		Scheduler scheduler = taskAllocation.getScheduler();
-	//		this.log.info("The Scheduler is :" + scheduler);
-	//	}
+		//this.log.info("Start to find tasks in same Core: ");
+		
 		
 		/*+++++++++++++++++++++++++++++++++++++++++++++++++++
 		 * ++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -98,18 +93,21 @@ public class LWComponent_2801 extends WorkflowComponent{
 		 ++++++++++++++++++++++++++++++++++++++++++++++++++++
 		 ++++++++++++++++++++++++++++++++++++++++++++++++++++*/	
 		
-		//Sorting Tasks according to Priority level ("1", "2",..."9", from high to low)	
+		//Sorting Tasks according to Priority level ("1", "2",..."9", "natural ordering" from high to low)	
 		//In Amalthea model we shall limit the priority of task between 1 and 9, because we use String as data type, which makes a difference in comparing data
 		SortedMap<String, ArrayList<Task>> sortedTasksByPrio = getSortedMap(ctx);
-
+		this.log.info("Remember to set MHz as default Unit for Frequency in CoreType" );
+		this.log.info("Remember we use 'GB/s' as Unit for 'Data Rate' in MemoryType " );
+		this.log.info("Remember we use mW as default Unit for Power" + "\r");
+		
 		//Sorting Tasks according to TaskAllocation, where each task is allocated to a single Scheduler
 		HashMap<String, ArrayList<Task>> sortedTasksBySched = getHashMap(ctx);
-
+		this.log.info("The Loop for calculating WCRT and BCRT of each Task starts here : \r");
 		
 		for (String prio : sortedTasksByPrio.keySet()) {
 			ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
-			this.log.info("Task List of this priority levle" + prio + " is : " + arrayList);
-			this.log.info("Remember to set MHz as default Unit for Frequency in CoreType" + "\r");
+			this.log.info("Task List of Priority Levle '" + prio + "' is : " + arrayList);
+			//this.log.info("Remember to set MHz as default Unit for Frequency in CoreType" );
 
 			for (Task task : arrayList) {
 				String taskName = task.getName();
@@ -125,54 +123,88 @@ public class LWComponent_2801 extends WorkflowComponent{
 						//get WCET and BCET of single Task
 						taskWCET = getWCETinIC(ctx, task);
 						taskBCET = getBCETinIC(ctx, task);
-						this.log.info("For TASK :" + taskName + " Its WCET in InstructionCycles is :" + taskWCET + ". BCET in InstructionCycles is :" + taskBCET);
+						this.log.info("For TASK : [" + taskName + "].");
+						this.log.info("It's WCET in InstructionCycles is :" + taskWCET + ". BCET in InstructionCycles is :" + taskBCET);
 						//Time Unit Conversion from Instruction Cycles to mS
 						double taskWCETinmS = runUnitConversion(ctx, taskWCET);
 						double taskBCETinmS = runUnitConversion(ctx, taskBCET);
-						this.log.info("WCET in Unit mS is :" + taskWCETinmS + " mS. BCET in Unit mS is :" + taskBCETinmS + " mS");
+						this.log.info("It's WCET in Unit 'mS' is :" + taskWCETinmS + " mS. It's BCET in Unit mS is :" + taskBCETinmS + " mS");
 
-						//get Period of this Task
+						//get Period of this Task and change from Time to double
 						Time period = periodStimulus.getRecurrence();
 						this.log.info("Period of this Task is :" + period);
+						double periodValue = period.getValue().longValue();
+						
 						TimeUnit periodUnit = period.getUnit();
-						this.log.info("The Unit of this Task is :" + periodUnit);
+						//this.log.info("The Unit of this Task is :" + periodUnit);
 						
 						//get Write Access Time of Single Task
 						//We assume that Write Access of Critical Section will be blocked by other Task with lower Priority, for Reading Access would not be blocked
 						//Here we assume, that Write Access to all Critical Section during each task would lead to Blocking.
 						//String writeLabelList = getWriteLabelList(task);
 						ArrayList<Label> writeLabelList = getWriteLabelList(task);
-						this.log.info("The List of Write Label in task '" + taskName +"' is :"+ writeLabelList);
+						//this.log.info("The List of Write Label in task '" + taskName +"' is :"+ writeLabelList);
+						
 						//Calculate the total Blocking Time of this Task
 						//Through Method calculateBlockingTime we have set the Unit of blockingTime in milliSecond
 						double blockingTime = calculateBlockingTime(writeLabelList, ctx);
 						this.log.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS");
-						this.log.info("Remember we use 'GB/s' as Unit for 'Data Rate' in MemoryType " + "\r");
+						//this.log.info("Remember we use 'GB/s' as Unit for 'Data Rate' in MemoryType " + "\r");
 
 						//Calculating WCRT of the task						
 						//Find, if this task has highest Priority in its Core
-						Scheduler scheduler = getTaskScheduler(task, ctx);
+						//Scheduler scheduler = getTaskScheduler(task, ctx);
 						//this.log.info("The Scheduler of specified Task : '" + taskName + "' is :" + scheduler + "\r");
 						//find the task list, where all task are scheduled by the same Scheduler as the specified task
 						//ArrayList<Task> taskListBySched = getTaskWCRT(task, ctx, sortedTasksBySched, sortedTasksByPrio);
 						//this.log.info(taskListBySched);
-						String str1 = "5";
-						String str2 = "7";
-						int a = str1.compareTo(str2);
-						this.log.info("The result is :" + a );
-						double b = 0.01;
-						double c = 1.0;
-						double d = c- b;
-						this.log.info(d);
+						
+						//String str1 = "5";
+						//String str2 = "7";
+						//int a = str1.compareTo(str2);
+						//this.log.info("The result is :" + a );
+						//double b = 0.01;
+						//double c = 1.0;
+						//double d = c- b;
+						//this.log.info(d);
 						
 						double taskWCRT = getTaskWCRT(task, ctx, sortedTasksBySched);
-						this.log.info("WCRT is :" + taskWCRT);
+						this.log.info("WCRT of task '" + taskName + "' is :" + taskWCRT + " mS");
 						
 						
 						//Calculating BCRT of the task
+						double taskBCRT = getTaskBCRT(task, ctx, sortedTasksBySched);
+						this.log.info("BCRT of task '" + taskName + "' is :" + taskBCRT + " mS");
 						
+						//Test for method GCD
+						//double gcdtest = GCD(20, 5);
+						//this.log.info("GCD is :" + gcdtest);
 						
+						//Calculating Computing Energy Consumption
+						//Remember the default Unit of Power is milliWatt
+						Value computingPowerValue = getComputingPower(ctx);
+						//this.log.info("The Computing Power is :" + computingPowerValue + "mW");
+						String computingPowerString = computingPowerValue.toString().substring(9);
+						this.log.info("The Computing Power is :" + computingPowerString + " mW");
 						
+						double computingPower = Double.parseDouble(computingPowerString);
+						double computingEnergyConsump = computingPower * taskWCRT;
+						this.log.info("The Computing Energy Consumption of task '" + taskName + "' is :" + computingEnergyConsump + " mS*mW");
+						
+						//Calculating Idle state Consumption
+						//Remember the default Unit of Power is milliWatt
+						Value idlePowerValue = getIdlePower(ctx);
+						String idlePowerString = idlePowerValue.toString().substring(9);
+						double idlePower = Double.parseDouble(idlePowerString);
+						//Calculating Idle Time
+						double idleTime = periodValue - taskWCRT;
+						double idleStateEnergyConsump = idlePower * idleTime;
+						this.log.info("The idle state Energy Consumption of task '" + taskName + "' is :" + idleStateEnergyConsump + " mS*mW");
+
+						//Calculating Total Energy Consumption
+						double totalEnergyConsump = idleStateEnergyConsump + computingEnergyConsump;
+						this.log.info("The Total Energy Consumption of task '" + taskName + "' is :" + totalEnergyConsump + " mS*mW" + "\r");
+
 					}
 
 			
@@ -251,7 +283,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 
 		assert null != amaltheaModel;
 
-		this.log.info("Starting to read AMALTHEA model...");
+		//this.log.info("Starting to read AMALTHEA model...");
 
 		final SWModel swModel = amaltheaModel.getSwModel();
 
@@ -651,7 +683,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 
 		assert null != amaltheaModel;
 
-		this.log.info("Starting to read AMALTHEA model...");
+		//this.log.info("Starting to read AMALTHEA model...");
 
 		final HWModel hwModel = amaltheaModel.getHwModel();
 
@@ -713,7 +745,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 			//Take care, the default Unit must be mS
 			taskPeriodValue = period.getValue().longValue();
 			}
-		this.log.info("The period of Current Task '" + task + "' is :" + taskPeriodValue);
+		//this.log.info("The period of the specified Task '" + task + "' is :" + taskPeriodValue);
 		
 		//Initialization of WCRT of current task
 		//This Value should be a constant, which represents ONLY WCET und Blocking Time of current TASK
@@ -760,7 +792,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 				// "[△/Pj]" term, take the Upper Limit
 				double cycNumber = taskWCRT/periodValue;
 				double cyclesNumber = Math.ceil(cycNumber);
-				this.log.info("Cycles Number is" + cyclesNumber);
+				this.log.info("iterative Cycles Number is " + cyclesNumber);
 				
 				//"[△/Pj]*Cj" term
 				preempTime = cyclesNumber * wcetHigherPrior;
@@ -785,10 +817,10 @@ public class LWComponent_2801 extends WorkflowComponent{
 		} while (taskWCRT < taskPeriodValue && !equalJudge);
 	//	} while (false);
 		
-		this.log.info("The final WCRT value is :" + temporaryWCRT);
-		//return taskWCRT;
-		return temporaryWCRT;
+		//this.log.info("The final WCRT value is :" + temporaryWCRT);
 		
+		return temporaryWCRT;
+		//return taskWCRT;
 	}
 	
 	// method to return a scheduler from the specified task
@@ -818,19 +850,21 @@ public class LWComponent_2801 extends WorkflowComponent{
 			return false;
 		}
 	}
+
 	
 	//Method to calculate BCRT of a task
 	private double getTaskBCRT(Task task, Context ctx, HashMap<String, ArrayList<Task>> sortedTasksByScheduler) {
 		
+		String taskName = task.getName();
 		// get TaskList according to the same allocated Scheduler
 		String schedulerString = getTaskScheduler(task, ctx).toString();
 		ArrayList<Task> taskListBySched = sortedTasksByScheduler.get(schedulerString);
 		String taskPriorityValue = task.getCustomProperties().get("priority").toString();
 		
-		//double totalPreemptionTime = 0;
+		//Definition BCET of task with higher Priority as task, which is the parameter in this method
 		double bcetHigherPrior = 0;
 		
-		//get BCET of this current task, which is one parameter of this method
+		//get BCET of this specified task, which is the parameter of this method
 		long taskBCETinIC = getBCETinIC(ctx, task);
 		double taskBCET = runUnitConversion(ctx, taskBCETinIC);
 		
@@ -838,8 +872,9 @@ public class LWComponent_2801 extends WorkflowComponent{
 		//ArrayList<Label> writeLabelList = getWriteLabelList(task);
 		//double blockingTime = calculateBlockingTime(writeLabelList, ctx);
 		
-		//get Period of this current task,which is one parameter of this method
+		//get Period of the specified task,which is one parameter in this method
 		long taskPeriodValue = 0;
+		TimeUnit periodUnit = null;
 		EList<Stimulus> taskStimulusList = task.getStimuli();
 		for (Stimulus stimulus : taskStimulusList) {
 			PeriodicStimulus periodicStimulus = (PeriodicStimulus) stimulus; 
@@ -847,26 +882,32 @@ public class LWComponent_2801 extends WorkflowComponent{
 			Time period = periodicStimulus.getRecurrence();
 			//Take care, the default Unit must be mS
 			taskPeriodValue = period.getValue().longValue();
+			periodUnit = period.getUnit();
 			}
-		this.log.info("The period of Current Task '" + task + "' is :" + taskPeriodValue);
 		
-		//Initialization of BCRT of current task
-		//This Value should be a constant, which represents ONLY BCET of current TASK
-		//double initialWCRT = taskWCET;
-		//This variable records the last taskWCRT, get ready to compare with the current taskWCRT
-		//double temporaryWCRT = 0;
+		//this.log.info("The period of the Specified Task '" + taskName + "' is :" + taskPeriodValue + " " + periodUnit);
+		
+		//Initialization BCRT of the specified task
+		//This Value should be a constant, which represents ONLY BCET of the specified TASK
+		double initialBCRT = taskBCET;
+		//This variable records the last taskBCRT, get ready to compare with the current taskBCRT
+		double temporaryBCRT = 0;
 		//this.log.info("The WCRT of task '"+ task + "' is :" + taskWCRT);
 		//double preempTime = 0;
-		//boolean equalJudge = false;
 		
-		//Initialing taskWCRT, which changes with Cycles Number of preemptive Task
-		//double taskWCRT = initialWCRT;
+		// this Value is used to break do..while{} Loop, when BCRT do not change anymore
+		// Value Initialization
+		boolean equalJudge = false;
+		
+		//Initializing taskWCRT, which changes with Cycles Number of preemptive Task
+		double taskBCRT = initialBCRT;
+		
 		//ITERATIVE CALCULATION ALGORITHME
-		//while (taskWCRT < taskPeriodValue || ) {
 		do 						{	
-			//record the last taskWCRT, get ready to compare with the current taskWCRT
-			//temporaryWCRT = taskWCRT;	
-			//double totalPreemptionTime = 0;
+			//record the last taskBCRT, get ready to compare with the current taskWCRT
+			temporaryBCRT = taskBCRT;
+			//Initializing Total preemptive Time to Zero before each iteration
+			double totalPreemptionTime = 0;
 		
 		for (Task eachtask : taskListBySched) {
 			String prioValue = eachtask.getCustomProperties().get("priority").toString();
@@ -892,26 +933,42 @@ public class LWComponent_2801 extends WorkflowComponent{
 					periodValue = period.getValue().longValue();
 					}
 				
-				// get gcd(Pi,Pj) between Task out of for -Cycle and task in for-Cycle
-				long gcdinIC = GCD(taskPeriodValue, periodValue);
-				double gcdinmS = runUnitConversion(ctx, gcdinIC);
+				// get gcd(Pi,Pj) between the specified Task and the current task in For-Loop
+				double gcdinmS = GCD(taskPeriodValue, periodValue);
+				//this.log.info("GCD between Specified Task and Current Task is :" + gcdinmS);
+				//Recursion for △j, get BCRT of the task, which has higher priority as the specified task, that is the parameter of this method
+				double bcrtHigherPriority = getTaskBCRT(eachtask, ctx, sortedTasksByScheduler);
 				
-				
-				//Rekurssion for △j, get BCRT of the task, which has higher priority as the specified task, that is the parameter of this method
-				double bcrtHigherPriority = getTaskBCRT(task, ctx, sortedTasksByScheduler);
-				// round down of △j/gcd(Pi,Pj)
+				// [  △j/gcd(Pi,Pj) ]  term, round down 
 				double temporaryValue = bcrtHigherPriority/gcdinmS;
-				int floorValue = (int) Math.floor(temporaryValue);
+				long floorValue = (long) Math.floor(temporaryValue);
+				//this.log.info("The floor Value is :" + floorValue);
+				
 				// max[1,[△/gcd(Pi,Pj)]]
 				long maxValue = Math.max(1, floorValue);
-				//max[,]*gcd()
+				//this.log.info("The Max Value is :" + maxValue);
+		
+				//max[ , ]*gcd() term
 				double maxGCD = maxValue * gcdinmS;  
+				//this.log.info("The Multiplied Value is :" + maxGCD);
+
 				// xj, the next activation time
 				double nextActivTime = periodValue - maxGCD;
 				
+				// ( △ i - xj ) term
+				double differValue = taskBCRT - nextActivTime;
 				
-				//
+				// max[0 , △i-xj] term
+				double maxDiffer = Math.max(0, differValue);
+				double cyclesNumber = maxDiffer/periodValue;
+				//  [  max / Pj ] term , taking the upper Limit
+				double maxCycNum = Math.ceil(cyclesNumber);
+				// [ max / Pj ]  * Cj term, preemption time of current Task
+				double preempTime = maxCycNum * bcetHigherPrior;
 				
+				//"∑ [max / Pj] * Cj" term
+				totalPreemptionTime += preempTime; 
+				//this.log.info("The totalpreemption time for BCRT is :" + totalPreemptionTime);
 				
 				// "[△/Pj]" term, take the Upper Limit
 				//double cycNumber = taskWCRT/periodValue;
@@ -925,33 +982,74 @@ public class LWComponent_2801 extends WorkflowComponent{
 				//totalPreemptionTime += preempTime; 
 				//this.log.info("The totalpreemption time is :" + totalPreemptionTime);
 			}
-			// "∑ [△/Pj]*Cj" term
-			//totalPreemptionTime += preempTime; 
-			//this.log.info("The totalpreemption time is :" + totalPreemptionTime);
-		}
-		// "∑ [△/Pj]*Cj" term
-		//totalPreemptionTime += preempTime; 
-		taskWCRT = initialWCRT + totalPreemptionTime;
+					}
+		
+		taskBCRT = initialBCRT + totalPreemptionTime;
 		//return totalPreemptionTime;
 		
 		//Judge if WCRT of task equals to last Iteration
-	    equalJudge = equal(taskWCRT, temporaryWCRT);
+	    equalJudge = equal(taskBCRT, temporaryBCRT);
 		
-	    //If WCRT < Period or WCRT do not change
-		} while (taskWCRT < taskPeriodValue && !equalJudge);
+	    //If BCRT < Period or BCRT do not change
+		} while (taskBCRT < taskPeriodValue && !equalJudge);
 	//	} while (false);
 		
-		this.log.info("The final WCRT value is :" + temporaryWCRT);
-		//return taskWCRT;
-		return temporaryWCRT;
+		//this.log.info("The final BCRT value is :" + temporaryBCRT);
 		
+		return temporaryBCRT;
+		//return taskWCRT;
 
 	}
 	
 	//get gcd(Pi,Pj)
+	//最大公约数必然是整数
 	public long GCD(long a, long b) {
 		   if (b==0) return a;
 		   return GCD(b,a%b);
+		}
+	
+	//get "Computing Power" Info from CoreType
+	private Value getComputingPower(Context ctx) {
+		EList<Core> coreList = getCoreList(ctx);
+				
+		CoreType coreType = null;
+		EMap<String, Value> mapCoreTypeCustomProperty = null;
+		Value computingPower = null;
+		for (Core core : coreList) {
+					
+			coreType = core.getCoreType();
+			mapCoreTypeCustomProperty = coreType.getCustomProperties();
+			if (mapCoreTypeCustomProperty.containsKey("Computing Power")) {
+						
+				computingPower = mapCoreTypeCustomProperty.get("Computing Power");
+				}
+		}
+				
+		return computingPower;
+				
+	}
+
+	//get "Idle Power" Info from CoreType
+	private Value getIdlePower(Context ctx) {
+		EList<Core> coreList = getCoreList(ctx);
+		
+		CoreType coreType = null;
+		EMap<String, Value> mapCoreTypeCustomProperty = null;
+		Value idlePower = null;
+		for (Core core : coreList) {
+			
+			coreType = core.getCoreType();
+			mapCoreTypeCustomProperty = coreType.getCustomProperties();
+			//containsKey只是判断该map中是否含有指定的Key
+			if (mapCoreTypeCustomProperty.containsKey("Idle Power")) {
+				//String powerMode = "Idel Power";
+				//idlePower = mapCoreTypeCustomProperty.get("Idle Power");
+				//idlePower = mapCoreTypeCustomProperty.get(powerMode);
+				idlePower = mapCoreTypeCustomProperty.get("Idle Power");
+				}
+		}
+		
+		return idlePower;
 		}
 	
 	
