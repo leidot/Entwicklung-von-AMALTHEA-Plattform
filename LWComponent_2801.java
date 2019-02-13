@@ -1,11 +1,27 @@
 package org.eclipse.app4mc.amalthea.example.workflow.components;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.FileHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
 
 import org.eclipse.app4mc.amalthea.model.Amalthea;
 import org.eclipse.app4mc.amalthea.model.CallGraph;
@@ -54,6 +70,30 @@ public class LWComponent_2801 extends WorkflowComponent{
 	@Override
 	protected void runInternal(Context ctx) throws WorkflowException {
 		// TODO Auto-generated method stub
+	
+		//Information from Log to File	
+		File file = new File("D:\\1");
+		if(!file.exists()){//如果文件夹不存在
+			file.mkdir();
+		}
+		
+		Logger logger = Logger.getLogger("MyLog");  
+	    FileHandler fh = null;  
+	    
+	    try {  
+
+	        // This block configure the logger with handler and formatter  
+	        fh = new FileHandler("D:\\1\\out1.txt");  
+	        logger.addHandler(fh);
+	        SimpleFormatter formatter = new SimpleFormatter();  
+	        fh.setFormatter(formatter);  
+	        
+
+	    } catch (SecurityException e) {  
+	        e.printStackTrace();  
+	    } catch (IOException e) {  
+	        e.printStackTrace();  
+	    }  
 		
 		/*+++++++++++++++++++++++++
 		 * Operation in SWModel
@@ -64,6 +104,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 			throw new WorkflowException("No proper SWModel available!");
 		}
 		this.log.info("Number of tasks in model: " + getAmaltheaModel(ctx).getSwModel().getTasks().size());
+		logger.info("Number of tasks in model: " + getAmaltheaModel(ctx).getSwModel().getTasks().size());
 		//this.log.info("Number of tasks in model: " + getAmaltheaModel(ctx).toString());
 		
 		/*+++++++++++++++++++++++++
@@ -86,7 +127,35 @@ public class LWComponent_2801 extends WorkflowComponent{
 		}
 		//this.log.info("Start to find tasks in same Core: ");
 		
+		//create file to store Info from Console
+		//File file = new File("""output.txt"); C:\Users\lei\Desktop
+/*		//创建文件夹
+		File file = new File("D:\\1");
+		if(!file.exists()){//如果文件夹不存在
+			file.mkdir();
+		}
+		try{
+			File f=new File("D:\\1\\out.txt");
+	        f.createNewFile();
+			
+			//异常处理
+			//如果Qiju_Li文件夹下没有Qiju_Li.txt就会创建该文件
+				//BufferedWriter bw=new BufferedWriter(new FileWriter("D:\\1\\1.txt"));
+			//bw.write("Hello I/O!");//在创建好的文件中写入"Hello I/O"
+			//bw.close();//一定要关闭文件
+			FileOutputStream fileOutputStream = new FileOutputStream(f);
+	        PrintStream printStream = new PrintStream(fileOutputStream);
+	        System.setOut(printStream);
+	        System.out.println("默认输出到控制台的这一句，输出到了文件 out.txt");
+
+		}catch(IOException el){
+			System.out.println("Error during reading/writing");
+		}  
+*/		 
 		
+				
+	    
+	    
 		/*+++++++++++++++++++++++++++++++++++++++++++++++++++
 		 * ++++++++++++++++++++++++++++++++++++++++++++++++++
 		 * Main Function starts here
@@ -100,13 +169,18 @@ public class LWComponent_2801 extends WorkflowComponent{
 		this.log.info("Remember we use 'GB/s' as Unit for 'Data Rate' in MemoryType " );
 		this.log.info("Remember we use mW as default Unit for Power" + "\r");
 		
+		logger.info("Remember to set MHz as default Unit for Frequency in CoreType" );
+		logger.info("Remember we use 'GB/s' as Unit for 'Data Rate' in MemoryType ");
+		logger.info("Remember we use mW as default Unit for Power" + "\r");
 		//Sorting Tasks according to TaskAllocation, where each task is allocated to a single Scheduler
 		HashMap<String, ArrayList<Task>> sortedTasksBySched = getHashMap(ctx);
 		this.log.info("The Loop for calculating WCRT and BCRT of each Task starts here : \r");
+		logger.info("The Loop for calculating WCRT and BCRT of each Task starts here : \r");
 		
 		for (String prio : sortedTasksByPrio.keySet()) {
 			ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
 			this.log.info("Task List of Priority Levle '" + prio + "' is : " + arrayList);
+			logger.info("Task List of Priority Levle '" + prio + "' is : " + arrayList);
 			//this.log.info("Remember to set MHz as default Unit for Frequency in CoreType" );
 
 			for (Task task : arrayList) {
@@ -115,6 +189,19 @@ public class LWComponent_2801 extends WorkflowComponent{
 				long taskBCET = 0;
 				
 				EList<Stimulus> taskStimuliList = task.getStimuli();
+				
+				//Examine, whether there are Stimuli in this task
+				if (taskStimuliList.isEmpty()) {
+					this.log.info("Warning : There exists none Stimulus for Task '" + taskName + "'");
+					logger.info("Warning : There exists none Stimulus for Task '" + taskName + "'");
+				}
+				//Examine and output Warning, if there are more than 1 Stimulus in this task
+				if (taskStimuliList.size() > 1) {
+					this.log.info("Warning : This Plug-in supports only one Stimulus for each Task");
+					logger.info("Warning : This Plug-in supports only one Stimulus for each Task");
+				}
+				
+				
 				//Despite we have a list of Stimulus for each task, but actually in Task model we have just one Stimulus (maximal one Periodic Stimulus and one InterProcessTrigger Stimulus)in the list
 				for (Stimulus stimulus : taskStimuliList) {
 					if (PeriodicStimulus.class.isInstance(stimulus)) {
@@ -123,17 +210,37 @@ public class LWComponent_2801 extends WorkflowComponent{
 						//get WCET and BCET of single Task
 						taskWCET = getWCETinIC(ctx, task);
 						taskBCET = getBCETinIC(ctx, task);
-						this.log.info("For TASK : [" + taskName + "].");
+						this.log.info("Working for TASK : [" + taskName + "].");
 						this.log.info("It's WCET in InstructionCycles is :" + taskWCET + ". BCET in InstructionCycles is :" + taskBCET);
+						logger.info("Working for TASK : [" + taskName + "].");
+						logger.info("It's WCET in InstructionCycles is :" + taskWCET + ". BCET in InstructionCycles is :" + taskBCET);
 						//Time Unit Conversion from Instruction Cycles to mS
 						double taskWCETinmS = runUnitConversion(ctx, taskWCET);
 						double taskBCETinmS = runUnitConversion(ctx, taskBCET);
 						this.log.info("It's WCET in Unit 'mS' is :" + taskWCETinmS + " mS. It's BCET in Unit mS is :" + taskBCETinmS + " mS");
+						logger.info("It's WCET in Unit 'mS' is :" + taskWCETinmS + " mS. It's BCET in Unit mS is :" + taskBCETinmS + " mS");
 
+						
 						//get Period of this Task and change from Time to double
 						Time period = periodStimulus.getRecurrence();
 						this.log.info("Period of this Task is :" + period);
+						logger.info("Period of this Task is :" + period);
 						double periodValue = period.getValue().longValue();
+						
+						//Output Warning, if WCET > Period
+						if (taskWCETinmS > periodValue) {
+							
+							this.log.info("Warning : Task '" + taskName + "' has a period less than its WCET");
+							logger.info("Warning : Task '" + taskName + "' has a period less than its WCET");
+							}
+						
+						//Output Warning, if BCET > Period
+						if (taskBCETinmS > periodValue) {
+							
+							this.log.info("Warning : Task '" + taskName + "' has a period less than its BCET");
+							logger.info("Warning : Task '" + taskName + "' has a period less than its BCET");
+							}
+
 						
 						TimeUnit periodUnit = period.getUnit();
 						//this.log.info("The Unit of this Task is :" + periodUnit);
@@ -149,32 +256,18 @@ public class LWComponent_2801 extends WorkflowComponent{
 						//Through Method calculateBlockingTime we have set the Unit of blockingTime in milliSecond
 						double blockingTime = calculateBlockingTime(writeLabelList, ctx);
 						this.log.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS");
+						logger.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS");
 						//this.log.info("Remember we use 'GB/s' as Unit for 'Data Rate' in MemoryType " + "\r");
-
-						//Calculating WCRT of the task						
-						//Find, if this task has highest Priority in its Core
-						//Scheduler scheduler = getTaskScheduler(task, ctx);
-						//this.log.info("The Scheduler of specified Task : '" + taskName + "' is :" + scheduler + "\r");
-						//find the task list, where all task are scheduled by the same Scheduler as the specified task
-						//ArrayList<Task> taskListBySched = getTaskWCRT(task, ctx, sortedTasksBySched, sortedTasksByPrio);
-						//this.log.info(taskListBySched);
-						
-						//String str1 = "5";
-						//String str2 = "7";
-						//int a = str1.compareTo(str2);
-						//this.log.info("The result is :" + a );
-						//double b = 0.01;
-						//double c = 1.0;
-						//double d = c- b;
-						//this.log.info(d);
 						
 						double taskWCRT = getTaskWCRT(task, ctx, sortedTasksBySched);
 						this.log.info("WCRT of task '" + taskName + "' is :" + taskWCRT + " mS");
+						logger.info("WCRT of task '" + taskName + "' is :" + taskWCRT + " mS");
 						
 						
 						//Calculating BCRT of the task
 						double taskBCRT = getTaskBCRT(task, ctx, sortedTasksBySched);
 						this.log.info("BCRT of task '" + taskName + "' is :" + taskBCRT + " mS");
+						logger.info("BCRT of task '" + taskName + "' is :" + taskBCRT + " mS");
 						
 						//Test for method GCD
 						//double gcdtest = GCD(20, 5);
@@ -186,10 +279,12 @@ public class LWComponent_2801 extends WorkflowComponent{
 						//this.log.info("The Computing Power is :" + computingPowerValue + "mW");
 						String computingPowerString = computingPowerValue.toString().substring(9);
 						this.log.info("The Computing Power is :" + computingPowerString + " mW");
+						logger.info("The Computing Power is :" + computingPowerString + " mW");
 						
 						double computingPower = Double.parseDouble(computingPowerString);
 						double computingEnergyConsump = computingPower * taskWCRT;
 						this.log.info("The Computing Energy Consumption of task '" + taskName + "' is :" + computingEnergyConsump + " mS*mW");
+						logger.info("The Computing Energy Consumption of task '" + taskName + "' is :" + computingEnergyConsump + " mS*mW");
 						
 						//Calculating Idle state Consumption
 						//Remember the default Unit of Power is milliWatt
@@ -200,26 +295,23 @@ public class LWComponent_2801 extends WorkflowComponent{
 						double idleTime = periodValue - taskWCRT;
 						double idleStateEnergyConsump = idlePower * idleTime;
 						this.log.info("The idle state Energy Consumption of task '" + taskName + "' is :" + idleStateEnergyConsump + " mS*mW");
+						logger.info("The idle state Energy Consumption of task '" + taskName + "' is :" + idleStateEnergyConsump + " mS*mW");
 
 						//Calculating Total Energy Consumption
 						double totalEnergyConsump = idleStateEnergyConsump + computingEnergyConsump;
 						this.log.info("The Total Energy Consumption of task '" + taskName + "' is :" + totalEnergyConsump + " mS*mW" + "\r");
+						logger.info("The Total Energy Consumption of task '" + taskName + "' is :" + totalEnergyConsump + " mS*mW" + "\r");
 
-					}
-
-			
-			
-			
-			
-			
+					}			
+				}
 			}
-		}
 	
-	}
+		}
 	
 
-		}
-	
+		
+	}
+
 	
 	//++++++++++++++++++++++++++++++++++++++++++++++
 	//M--e--t--h--o--d
@@ -227,9 +319,28 @@ public class LWComponent_2801 extends WorkflowComponent{
 	
 	//get SortedMap from taskList
 	private SortedMap<String, ArrayList<Task>> getSortedMap(Context ctx) {
+		//Information from Log to File	
+		Logger logger = Logger.getLogger("MyLog");  
+	    FileHandler fh = null;  
+	    
+	    try {  
+
+	        // This block configure the logger with handler and formatter  
+	        fh = new FileHandler("D:\\1\\out1.txt");  
+	        logger.addHandler(fh);
+	        SimpleFormatter formatter = new SimpleFormatter();  
+	        fh.setFormatter(formatter);  
+
+	    } catch (SecurityException e) {  
+	        e.printStackTrace();  
+	    } catch (IOException e) {  
+	        e.printStackTrace();  
+	    }  
+
+				
 		EList<Task> taskList = getTasks(ctx);
 		this.log.info("Task List without sorting:" + taskList.toString());
-						
+		logger.info("Task List without sorting:" + taskList.toString());				
 		SortedMap<String, ArrayList<Task>> sortedTasksByPrio = new TreeMap<>();
 		//CallSequence cseq = null;
 		for (Task task : taskList) {
@@ -248,11 +359,32 @@ public class LWComponent_2801 extends WorkflowComponent{
 			}
 		}
 		this.log.info("Task List WITH sorting:" + sortedTasksByPrio.toString());
+		logger.info("Task List WITH sorting:" + sortedTasksByPrio.toString());
 		return sortedTasksByPrio;
 	}
 	
 	// get TaskList according to Scheduler, if tasks are allocated to the same Scheduler, then they are set in a list
 	private HashMap<String, ArrayList<Task>> getHashMap(Context ctx) {
+		//Information from Log to File	
+		Logger logger = Logger.getLogger("MyLog");  
+	    FileHandler fh = null;  
+	    
+	    try {  
+
+	        // This block configure the logger with handler and formatter  
+	        fh = new FileHandler("D:\\1\\out1.txt");  
+	        logger.addHandler(fh);
+	        SimpleFormatter formatter = new SimpleFormatter();  
+	        fh.setFormatter(formatter);  
+
+	    } catch (SecurityException e) {  
+	        e.printStackTrace();  
+	    } catch (IOException e) {  
+	        e.printStackTrace();  
+	    }  
+
+		
+		
 		EList<TaskAllocation> taskAllocationList = getAmaltheaModel(ctx).getMappingModel().getTaskAllocation();
 		
 		HashMap<String, ArrayList<Task>> sortedTaskBySchduler = new HashMap<>();
@@ -272,6 +404,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 			
 		}
 		this.log.info("Task List according to Scheduler with sorting :" + sortedTaskBySchduler.toString());
+		logger.info("Task List according to Scheduler with sorting :" + sortedTaskBySchduler.toString());
 		return sortedTaskBySchduler;
 		
 	}
@@ -279,6 +412,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 	
 	// read all tasks in SWModel and return a list of tasks
 	private EList<Task> getTasks(Context ctx) {
+		
 		final Amalthea amaltheaModel = getAmaltheaModel(ctx);
 
 		assert null != amaltheaModel;
@@ -530,11 +664,32 @@ public class LWComponent_2801 extends WorkflowComponent{
 	
 	//get Data Rate from "Memory Type", the Data Rate is stored in CustomProperty, if Memory is under HwSystem
 	private Value getDataRateUnderHwSystem(Context ctx) {
+		//Information from Log to File	
+		Logger logger = Logger.getLogger("MyLog");  
+	    FileHandler fh = null;  
+	    
+	    try {  
+
+	        // This block configure the logger with handler and formatter  
+	        fh = new FileHandler("D:\\1\\out1.txt");  
+	        logger.addHandler(fh);
+	        SimpleFormatter formatter = new SimpleFormatter();  
+	        fh.setFormatter(formatter);  
+
+	    } catch (SecurityException e) {  
+	        e.printStackTrace();  
+	    } catch (IOException e) {  
+	        e.printStackTrace();  
+	    }  
+
+		
 		HwSystem hwSystem = getHwSystem(ctx);
 		
 		EList<Memory> memoryList = hwSystem.getMemories();
 		if (memoryList == null) {
 			this.log.info("Error: There is no Memory in HWModel!");
+			logger.info("Error: There is no Memory in HWModel!");
+			
 		}
 		org.eclipse.app4mc.amalthea.model.MemoryType memoryType = null;
 		EMap<String, Value> memoryTypeCustomProperty = null;
@@ -548,6 +703,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 			memoryType = memory.getType();
 			if (memoryType == null) {
 				this.log.info("Error: There is no Definition of MemoryType in HWModel!");
+				logger.info("Error: There is no Definition of MemoryType in HWModel!");
 			}
 			memoryTypeCustomProperty = memoryType.getCustomProperties();
 			
@@ -720,6 +876,24 @@ public class LWComponent_2801 extends WorkflowComponent{
 	// calculate Preemption time according to task with higher priority 
 	private double getTaskWCRT(Task task, Context ctx, HashMap<String, ArrayList<Task>> sortedTasksByScheduler) {
 	//private ArrayList<Task> getTaskWCRT(Task task, Context ctx, HashMap<String, ArrayList<Task>> sortedTasksByScheduler, SortedMap<String, ArrayList<Task>> sortedTasksByPriority) {
+		//Information from Log to File	
+		Logger logger = Logger.getLogger("MyLog");  
+	    FileHandler fh = null;  
+	    
+	    try {  
+
+	        // This block configure the logger with handler and formatter  
+	        fh = new FileHandler("D:\\1\\out1.txt");  
+	        logger.addHandler(fh);
+	        SimpleFormatter formatter = new SimpleFormatter();  
+	        fh.setFormatter(formatter);  
+
+	    } catch (SecurityException e) {  
+	        e.printStackTrace();  
+	    } catch (IOException e) {  
+	        e.printStackTrace();  
+	    }  
+
 		
 		String schedulerString = getTaskScheduler(task, ctx).toString();
 		ArrayList<Task> taskListBySched = sortedTasksByScheduler.get(schedulerString);
@@ -768,15 +942,21 @@ public class LWComponent_2801 extends WorkflowComponent{
 		for (Task eachtask : taskListBySched) {
 			String prioValue = eachtask.getCustomProperties().get("priority").toString();
 			
+			if(eachtask != task ){
+				
 			//字典顺序，"1">""2">"3">"4".....
 			//但是实际上，通过下面的比较器，"1"-"2" = -1,务必要注意
 			//Str1.compareTo(Str2)返回Str1-Str2的值，且结果为int类型
+			//Here, we take in consideration of greater and equal to the specified Task
 			int diff = prioValue.compareTo(taskPriorityValue);
-			if (diff < 0) {
+			if (diff <= 0) {
 				// get "Cj" --> wcetHihgerPrior
 				long wcetICHigherPrior = getWCETinIC(ctx, eachtask);
 				wcetHigherPrior = runUnitConversion(ctx, wcetICHigherPrior);
 				//totalPreemptionTime += wcetHigherPrior; 
+				
+				//get task name
+				String eachtaskName = eachtask.getName();
 				
 				//get period Pj
 				long periodValue = 0;
@@ -792,7 +972,8 @@ public class LWComponent_2801 extends WorkflowComponent{
 				// "[△/Pj]" term, take the Upper Limit
 				double cycNumber = taskWCRT/periodValue;
 				double cyclesNumber = Math.ceil(cycNumber);
-				this.log.info("iterative Cycles Number is " + cyclesNumber);
+				this.log.info("The upper preemption times from task '" + eachtaskName + "'is " + cyclesNumber);
+				logger.info("The upper preemption times from task '" + eachtaskName + "'is " + cyclesNumber);
 				
 				//"[△/Pj]*Cj" term
 				preempTime = cyclesNumber * wcetHigherPrior;
@@ -800,10 +981,12 @@ public class LWComponent_2801 extends WorkflowComponent{
 				// "∑ [△/Pj]*Cj" term
 				totalPreemptionTime += preempTime; 
 				this.log.info("The totalpreemption time is :" + totalPreemptionTime);
+				logger.info("The totalpreemption time is :" + totalPreemptionTime);
 			}
 			// "∑ [△/Pj]*Cj" term
 			//totalPreemptionTime += preempTime; 
 			//this.log.info("The totalpreemption time is :" + totalPreemptionTime);
+			}
 		}
 		// "∑ [△/Pj]*Cj" term
 		//totalPreemptionTime += preempTime; 
@@ -854,6 +1037,24 @@ public class LWComponent_2801 extends WorkflowComponent{
 	
 	//Method to calculate BCRT of a task
 	private double getTaskBCRT(Task task, Context ctx, HashMap<String, ArrayList<Task>> sortedTasksByScheduler) {
+		//Information from Log to File	
+		Logger logger = Logger.getLogger("MyLog");  
+	    FileHandler fh = null;  
+	    
+	    try {  
+
+	        // This block configure the logger with handler and formatter  
+	        fh = new FileHandler("D:\\1\\out1.txt");  
+	        logger.addHandler(fh);
+	        SimpleFormatter formatter = new SimpleFormatter();  
+	        fh.setFormatter(formatter);  
+
+	    } catch (SecurityException e) {  
+	        e.printStackTrace();  
+	    } catch (IOException e) {  
+	        e.printStackTrace();  
+	    }  
+
 		
 		String taskName = task.getName();
 		// get TaskList according to the same allocated Scheduler
@@ -912,11 +1113,13 @@ public class LWComponent_2801 extends WorkflowComponent{
 		for (Task eachtask : taskListBySched) {
 			String prioValue = eachtask.getCustomProperties().get("priority").toString();
 			
+			if(eachtask != task){
+			String eachtaskName = eachtask.getName();
 			//字典顺序，"1">""2">"3">"4".....
 			//但是实际上，通过下面的比较器，"1"-"2" = -1,务必要注意
 			//Str1.compareTo(Str2)返回Str1-Str2的值，且结果为int类型
 			int diff = prioValue.compareTo(taskPriorityValue);
-			if (diff < 0) {
+			if (diff <= 0) {
 				// get "Cj" --> bcetHihgerPrior
 				long bcetICHigherPrior = getBCETinIC(ctx, eachtask);
 				bcetHigherPrior = runUnitConversion(ctx, bcetICHigherPrior);
@@ -963,12 +1166,15 @@ public class LWComponent_2801 extends WorkflowComponent{
 				double cyclesNumber = maxDiffer/periodValue;
 				//  [  max / Pj ] term , taking the upper Limit
 				double maxCycNum = Math.ceil(cyclesNumber);
+				this.log.info("The Upper Preemption times from Task '" + eachtaskName + "' is :" + maxCycNum);
+				logger.info("The Upper Preemption times from Task '" + eachtaskName + "' is :" + maxCycNum);
 				// [ max / Pj ]  * Cj term, preemption time of current Task
 				double preempTime = maxCycNum * bcetHigherPrior;
 				
 				//"∑ [max / Pj] * Cj" term
 				totalPreemptionTime += preempTime; 
-				//this.log.info("The totalpreemption time for BCRT is :" + totalPreemptionTime);
+				this.log.info("The total preemption time for BCRT of Task '" + taskName + "' is :" + totalPreemptionTime);
+				logger.info("The total preemption time for BCRT of Task '" + taskName + "' is :" + totalPreemptionTime);
 				
 				// "[△/Pj]" term, take the Upper Limit
 				//double cycNumber = taskWCRT/periodValue;
@@ -982,7 +1188,8 @@ public class LWComponent_2801 extends WorkflowComponent{
 				//totalPreemptionTime += preempTime; 
 				//this.log.info("The totalpreemption time is :" + totalPreemptionTime);
 			}
-					}
+			}
+		}
 		
 		taskBCRT = initialBCRT + totalPreemptionTime;
 		//return totalPreemptionTime;
@@ -1051,6 +1258,8 @@ public class LWComponent_2801 extends WorkflowComponent{
 		
 		return idlePower;
 		}
+	
+	
 	
 	
 }
