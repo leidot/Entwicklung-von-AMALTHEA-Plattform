@@ -258,7 +258,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 						
 						//Calculate the total Blocking Time of this Task
 						//Through Method calculateBlockingTime we have set the Unit of blockingTime in milliSecond
-						double blockingTime = calculateBlockingTime(writeLabelList, ctx, task);
+						double blockingTime = calculateLocalBlockingTime(writeLabelList, ctx, task);
 						this.log.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS");
 						//logger.info("The total Blocking Time of Task '" + taskName +"' is :"+ blockingTime + " mS");
 						//this.log.info("Remember we use 'GB/s' as Unit for 'Data Rate' in MemoryType " + "\r");
@@ -583,7 +583,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 	//Calculate total Write Access Time for each Task
 	//We assume that the Unit of LabelSize is Bit
 	//We assume that the Unit of DataRate is GB/S, here B means Byte
-	private double calculateBlockingTime(ArrayList<Label> writeLabelList, Context ctx, Task task) {
+	private double calculateLocalBlockingTime(ArrayList<Label> writeLabelList, Context ctx, Task task) {
 		String dataRateString = null;
 		float blockingTime = 0;
 		float dataRateLong = 0;
@@ -641,12 +641,11 @@ public class LWComponent_2801 extends WorkflowComponent{
 				blockingTimeWithoutUnit = numberofaccess * greatestLabelValue;
 				blockingTimeConversion = blockingTimeWithoutUnit/8000000;
 				blockingTime = blockingTimeConversion/dataRateLong;
-				totalBlockingTime += blockingTimeConversion;
+				//totalBlockingTime += blockingTimeConversion;
+				totalBlockingTime += blockingTime;
 			}
 			
 		}
-		
-		
 		//Remember that the Unit of LabelSize is Bit
 		//long totalLabelValue = 0;
 		//for (Label label : writeLabelList) {
@@ -952,7 +951,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 		//get Blocking Time of this current task,which is one parameter of this method
 		ArrayList<Label> writeLabelList = getWriteLabelList(task);
 		this.log.info("The write label List is :" + writeLabelList);
-		double blockingTime = calculateBlockingTime(writeLabelList, ctx, task);
+		double blockingTime = calculateLocalBlockingTime(writeLabelList, ctx, task);
 		
 		//get Period of this current task,which is one parameter of this method
 		long taskPeriodValue = 0;
@@ -965,10 +964,14 @@ public class LWComponent_2801 extends WorkflowComponent{
 			taskPeriodValue = period.getValue().longValue();
 			}
 		//this.log.info("The period of the specified Task '" + task + "' is :" + taskPeriodValue);
-		
+				
+		//Prepare local block time, Bi3 for initializing WCRT 
+		double localblockingtime = calculateLocalBlockingTime(writeLabelList, ctx, task); 
+		//Prepare partial global block time, Bi1 for initializing WCRT
+		double parglobalblockingtime = calculatePartialGlobalBlockingTime(task, ctx, sortedTasksByScheduler);
 		//Initialization of WCRT of current task
-		//This Value should be a constant, which represents ONLY WCET und Blocking Time of current TASK
-		double initialWCRT = taskWCET + blockingTime;
+		//This Value should be a constant, which represents ONLY WCET and Blocking Time of current TASK
+		double initialWCRT = taskWCET + blockingTime + localblockingtime + parglobalblockingtime;
 		//This variable records the last taskWCRT, get ready to compare with the current taskWCRT
 		double temporaryWCRT = 0;
 		//this.log.info("The WCRT of task '"+ task + "' is :" + taskWCRT);
@@ -983,7 +986,74 @@ public class LWComponent_2801 extends WorkflowComponent{
 			//record the last taskWCRT, get ready to compare with the current taskWCRT
 			temporaryWCRT = taskWCRT;	
 			double totalPreemptionTime = 0;
-		
+			
+			//Calculating Block Time because of tasks, that have higher priority than the specified task, meanwhile they have the same critical sections
+			//get the tasklist first
+			ArrayList<Task> remoteTaskHigherPrioList = findRemoteTaskListHigherPrio(task, ctx, sortedTasksByScheduler);
+			double totalaccesstime = 0;
+			for (Label label : writeLabelList) {
+				//Traversing each remote task with higher priority for the same critical section 
+				double accesstime = 0;
+				for (Task eachtask : remoteTaskHigherPrioList) {
+					//find period of eachtask, "Pr" term
+					long eachtaskperiod = 0;
+					EList<Stimulus> taskstimuluslist = eachtask.getStimuli();
+					for (Stimulus stimulus : taskStimulusList) {
+						PeriodicStimulus periodicStimulus = (PeriodicStimulus) stimulus; 
+						
+						Time period = periodicStimulus.getRecurrence();
+						//Take care, the default Unit must be mS
+						eachtaskperiod = period.getValue().longValue();
+						}
+					
+					ArrayList<Label> remoteWriteLabelList = getWriteLabelList(eachtask);
+					//when this task has the same critical section as specified task
+					if (remoteWriteLabelList.contains(label)) {
+						long labelValueLong = label.getSize().getValue().longValue();
+						//"Nr" Term
+						long accessnumber = getNumberOfAccess(remoteWriteLabelList, label);
+						
+						//"[¡÷/Pr]" Term
+						//Dont forget to plus this blocking time to taskWCRT
+						double cyclesnumber = taskWCRT/eachtaskperiod;
+						double cycnumber = Math.ceil(cyclesnumber);
+						//"[¡÷/Pr]*Nr" Term
+						//double blocktime = cycnumber * accessnumber; 
+						//"Wr" Term, write access time
+						String dataRateString = null;
+						float dataRateLong = 0;
+						if (getDataRateUnderHwSystem(ctx) != null) {
+							//Because the input String include (String), so we have to exclude the beginning 8 bit
+							//The Output is "(double) 512" therefore we just hold the bits after 9-th bit
+							dataRateString = getDataRateUnderHwSystem(ctx).toString().substring(9);
+						}
+						else if (getDataRateUnderEcu(ctx) != null) {
+							//dataRateString = getDataRateUnderEcu(ctx).toString();
+							dataRateString = getDataRateUnderEcu(ctx).toString().substring(9);
+						}
+						else if (getDataRateUnderMicrocontroller(ctx)!= null) {
+							//dataRateString = getDataRateUnderMicrocontroller(ctx).toString();
+							dataRateString = getDataRateUnderMicrocontroller(ctx).toString().substring(9);
+						}
+						else if (getDataRateUnderCore(ctx) != null) {
+							//dataRateString = getDataRateUnderCore(ctx).toString();
+							dataRateString = getDataRateUnderCore(ctx).toString().substring(9);
+						}
+						//change Data Type from String to float
+						//dataRateLong = Long.valueOf(dataRateString);
+						dataRateLong = Float.parseFloat(dataRateString);
+						double singleaccesstime = labelValueLong/dataRateLong;
+						
+						//"[¡÷/Pr] * Nr * Wr" Term
+						accesstime += singleaccesstime * accessnumber * cycnumber;  
+					
+					
+					}
+				}
+				totalaccesstime += accesstime; 
+			}
+			
+		//Calculating Preemption Time because of tasks, that are allocated on the same core as the specified task
 		for (Task eachtask : taskListBySched) {
 			String prioValue = eachtask.getCustomProperties().get("priority").toString();
 			
@@ -1023,6 +1093,8 @@ public class LWComponent_2801 extends WorkflowComponent{
 				//"[¡÷/Pj]*Cj" term
 				preempTime = cyclesNumber * wcetHigherPrior;
 				
+				//Calculate Bi2
+				
 				// "¡Æ [¡÷/Pj]*Cj" term
 				totalPreemptionTime += preempTime; 
 				this.log.info("The totalpreemption time is :" + totalPreemptionTime);
@@ -1033,9 +1105,8 @@ public class LWComponent_2801 extends WorkflowComponent{
 			//this.log.info("The totalpreemption time is :" + totalPreemptionTime);
 			}
 		}
-		// "¡Æ [¡÷/Pj]*Cj" term
-		//totalPreemptionTime += preempTime; 
-		taskWCRT = initialWCRT + totalPreemptionTime;
+
+		taskWCRT = initialWCRT + totalPreemptionTime + totalaccesstime;
 		//return totalPreemptionTime;
 		
 		//Judge if WCRT of task equals to last Iteration
@@ -1352,7 +1423,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 		return greatestLabelValue;
 	}
 	
-	//find list of remote tasks, which are allocated to different core as the specified task
+	//find list of remote tasks, which are allocated to different core as the specified task, meanwhile they have lower priority as the specified task
 	private ArrayList<Task> findRemoteTaskList(Task task, Context ctx, HashMap<String, ArrayList<Task>> sortedTasksByScheduler) {
 		ArrayList<Task> remoteTaskList = new ArrayList<Task>();
 		
@@ -1362,11 +1433,25 @@ public class LWComponent_2801 extends WorkflowComponent{
 		
 		//Here is total tasks from SW-Model
 		EList<Task> taskList = getAmaltheaModel(ctx).getSwModel().getTasks();		
-		
+		//this.log.info("Task list is :" + taskList);
+		//here is priority of task
+		Value priorityValue = task.getCustomProperties().get("priority");
+		String priorityStr = priorityValue.toString();
+		//int differ = 0;
 		for (Task eachtask : taskList) {
-			//Check each task in SW-Model, if this task is not allocated to the same core as the specified task then stores it in the new taskList
-			if (!(taskListBySched.contains(eachtask))) {
-				remoteTaskList.add(eachtask);
+			 //find priority of "eachtask"
+			Value prioValue = eachtask.getCustomProperties().get("priority");
+			String prioStr = prioValue.toString();
+
+			//make a difference between task and "eachtask"
+			int differ = prioStr.compareTo(priorityStr);
+			this.log.info("The differ between " + prioStr + "and " + priorityStr + "is :" + differ);
+			//Check each task in SW-Model, if this task is not allocated to the same core as the specified task and its priority is less than task, then stores it in the new taskList
+			if (!(taskListBySched.contains(eachtask)) ) {
+				if (differ > 0) {
+					remoteTaskList.add(eachtask);
+	
+				}
 			}
 		}
 		return remoteTaskList;
@@ -1374,7 +1459,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 	
 	//Calculating global blocking time from remote tasks, that are allocated to different cores as the specified task
 	//exactly Bi1
-	private float calculateGlobalBlockingTime(Task task, Context ctx, HashMap<String, ArrayList<Task>> sortedTasksByScheduler) {
+	private float calculatePartialGlobalBlockingTime(Task task, Context ctx, HashMap<String, ArrayList<Task>> sortedTasksByScheduler) {
 		String dataRateString = null;
 		float dataRateLong = 0;
 		if (getDataRateUnderHwSystem(ctx) != null) {
@@ -1463,5 +1548,41 @@ public class LWComponent_2801 extends WorkflowComponent{
 		
 		return remoteGreatestLabelValue;
 	}
+	
+	//find list of remote tasks, which are allocated to different core as the specified task, meanwhile they have higher priority as the specified task
+	private ArrayList<Task> findRemoteTaskListHigherPrio(Task task, Context ctx, HashMap<String, ArrayList<Task>> sortedTasksByScheduler) {
+		ArrayList<Task> remoteTaskListHigherPrio = new ArrayList<Task>();
+		
+		//find a list of tasks, which are allocated on the same core as the specified task
+		String schedulerString = getTaskScheduler(task, ctx).toString();
+		ArrayList<Task> taskListBySched = sortedTasksByScheduler.get(schedulerString);
+		
+		//Here is total tasks from SW-Model
+		EList<Task> taskList = getAmaltheaModel(ctx).getSwModel().getTasks();		
+		
+		//here is priority of task
+		Value priorityValue = task.getCustomProperties().get("priority");
+		String priorityStr = priorityValue.toString();
+		
+		for (Task eachtask : taskList) {
+			 //find priority of "eachtask"
+			Value prioValue = eachtask.getCustomProperties().get("priority");
+			String prioStr = prioValue.toString();
+
+			//make a difference between task and "eachtask"
+			int differ = prioStr.compareTo(priorityStr);
+			this.log.info("The differ between " + prioStr + "and " + priorityStr + "is :" + differ);
+			//Check each task in SW-Model, if this task is not allocated to the same core as the specified task and its priority is less than task, then stores it in the new taskList
+			if (!(taskListBySched.contains(eachtask)) ) {
+				if (differ <= 0) {
+					remoteTaskListHigherPrio.add(eachtask);
+				}
+			}
+		}
+		return remoteTaskListHigherPrio;
+		
+	}
+	
+	
 	
 }
