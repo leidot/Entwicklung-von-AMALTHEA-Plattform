@@ -611,7 +611,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 				checkList.add(label);	
 				//find how many times will the specified task write the label
 				numberofaccess = getNumberOfAccess(writeLabelList, label);
-				this.log.info("Number of access to label '" + label +"' is : " + numberofaccess);
+				this.log.info("Number of access to label '" + label.getName() +"' is : " + numberofaccess);
 				//find the greatest size of label in the tasks, that are allocated on the same core
 				greatestLabelValue = findGreatestLabelValue(task, sortedTasksByScheduler, label, ctx);
 				
@@ -923,15 +923,15 @@ public class LWComponent_2801 extends WorkflowComponent{
 		//This Value should be a constant, which represents ONLY WCET and Blocking Time of current TASK
 		double initialWCRT = taskWCET + localblockingtime/1000000 + parglobalblockingtime/1000000;
 		//this.log.info("WCET is :" + taskWCET);
-		this.log.info("Partial global blocking time realted to remote tasks with lower priority is :" + parglobalblockingtime + "nS");
-		this.log.info("Partial global blocking time realted to remote tasks with lower priority is :" + parglobalblockingtime/1000000 + "mS");
-		this.log.info("Local blocking time related to local tasks with lower priority is :" + localblockingtime + "nS" );
-		this.log.info("Local blocking time related to local tasks with lower priority is :" + localblockingtime/1000000 + "mS");
+		this.log.info("Partial global blocking time realted to remote tasks with lower priority is :" + parglobalblockingtime + " nS");
+		this.log.info("Partial global blocking time realted to remote tasks with lower priority is :" + parglobalblockingtime/1000000 + " mS");
+		this.log.info("Local blocking time related to local tasks with lower priority is :" + localblockingtime + " nS" );
+		this.log.info("Local blocking time related to local tasks with lower priority is :" + localblockingtime/1000000 + " mS");
 
-		MyLogger("Partial global blocking time realted to remote tasks with lower priority is :" + parglobalblockingtime + "nS");
-		MyLogger("Partial global blocking time realted to remote tasks with lower priority is :" + parglobalblockingtime/1000000 + "mS");
-		MyLogger("Local blocking time related to local tasks with lower priority is :" + localblockingtime + "nS");
-		MyLogger("Local blocking time related to local tasks with lower priority is :" + localblockingtime/1000000 + "mS");
+		MyLogger("Partial global blocking time realted to remote tasks with lower priority is :" + parglobalblockingtime + " nS");
+		MyLogger("Partial global blocking time realted to remote tasks with lower priority is :" + parglobalblockingtime/1000000 + " mS");
+		MyLogger("Local blocking time related to local tasks with lower priority is :" + localblockingtime + " nS");
+		MyLogger("Local blocking time related to local tasks with lower priority is :" + localblockingtime/1000000 + " mS");
 		//This variable records the last taskWCRT, get ready to compare with the current taskWCRT
 		double temporaryWCRT = 0;
 		//this.log.info("The WCRT of task '"+ task + "' is :" + taskWCRT);
@@ -982,7 +982,6 @@ public class LWComponent_2801 extends WorkflowComponent{
 						double cycnumber = Math.ceil(cyclesnumber);
 						//"[¡÷/Pr]*Nr" Term
 						//double blocktime = cycnumber * accessnumber; 
-						//"Wr" Term, write access time
 						String dataRateString = null;
 						float dataRateLong = 0;
 						if (getDataRateUnderHwSystem(ctx) != null) {
@@ -1004,8 +1003,13 @@ public class LWComponent_2801 extends WorkflowComponent{
 						}
 						//change Data Type from String to float
 						//dataRateLong = Long.valueOf(dataRateString);
+						// "Wr" term, write access time
 						dataRateLong = Float.parseFloat(dataRateString);
-						double singleaccesstime = labelValueLong/dataRateLong;
+						//this.log.info("Data Rate is " + dataRateLong);
+						double singleAccessTime = labelValueLong/dataRateLong;
+						//double singleaccesstime = labelValueLong/dataRateLong;
+						//To ensure unit of time is "mS"
+						double singleaccesstime = singleAccessTime/8000000;
 						
 						//"[¡÷/Pr] * Nr * Wr" Term
 						accesstime += singleaccesstime * accessnumber * cycnumber;  
@@ -1013,11 +1017,14 @@ public class LWComponent_2801 extends WorkflowComponent{
 					}
 				}
 				totalaccesstime += accesstime; 
-				this.log.info(n + "-th preemptive Blocking Time is :" + totalaccesstime);
+				this.log.info(n + "-th preemptive Blocking Time from remote tasks with higher priority is :" + totalaccesstime + "mS");
+				MyLogger(n + "-th preemptive Blocking Time from remote tasks with higher priority is :" + totalaccesstime + "mS");
 			}
 			if (totalaccesstime == 0) {
 				this.log.info( n + "-th ITERATION : Task '" + task.getName() +"' does not have preemptive Blocking Time from remote Task with higher PRIORITY");
-				}
+				//this.log.info( " Task '" + task.getName() +"' does not have preemptive Blocking Time from remote Task with higher PRIORITY");
+				MyLogger(n + "-th ITERATION : Task '" + task.getName() +"' does not have preemptive Blocking Time from remote Task with higher PRIORITY");
+			}
 
 			
 			
@@ -1056,8 +1063,8 @@ public class LWComponent_2801 extends WorkflowComponent{
 						// "[¡÷/Pj]" term, take the Upper Limit
 						double cycNumber = taskWCRT/periodValue;
 						double cyclesNumber = Math.ceil(cycNumber);
-						this.log.info( n + "-th ITERATION :" + " The upper preemption times from task '" + eachtaskName + "'is " + cyclesNumber);
-						//MyLogger("The upper preemption times from task '" + eachtaskName + "'is " + cyclesNumber);
+						this.log.info( n + "-th ITERATION :" + " The upper preemption numbers from task '" + eachtaskName + "'is " + cyclesNumber);
+						MyLogger(n + "-th ITERATION :" + " The upper preemption numbers from task '" + eachtaskName + "'is " + cyclesNumber);
 				
 						//"[¡÷/Pj]*Cj" term
 						preempTime = cyclesNumber * wcetHigherPrior;
@@ -1081,10 +1088,11 @@ public class LWComponent_2801 extends WorkflowComponent{
 			//Judge if WCRT of task equals to last Iteration
 			equalJudge = equal(taskWCRT, temporaryWCRT);
 		
+			this.log.info("WCRT = " + initialWCRT + " mS + " + totalPreemptionTime + " mS + " + totalaccesstime + " mS");
 			//If WCRT < Period or WCRT do not change
 		} while (taskWCRT < taskPeriodValue && !equalJudge);
 		
-		//this.log.info("The final WCRT value is :" + temporaryWCRT);
+		//this.log.info("WCRT = " + initialWCRT + " + " + totalPreemptionTime + " + " + totalaccesstime);
 		
 		return temporaryWCRT;
 		//return taskWCRT;
@@ -1244,16 +1252,16 @@ public class LWComponent_2801 extends WorkflowComponent{
 				double cyclesNumber = maxDiffer/periodValue;
 				//  [  max / Pj ] term , taking the upper Limit
 				double maxCycNum = Math.ceil(cyclesNumber);
-				this.log.info("The Upper Preemption times from Task '" + eachtaskName + "' is :" + maxCycNum);
+				this.log.info("The Upper Preemption numbers from Task '" + eachtaskName + "' is :" + maxCycNum);
 				MyLogger("The Upper Preemption times from Task '" + eachtaskName + "' is :" + maxCycNum);
 				// [ max / Pj ]  * Cj term, preemption time of current Task
 				double preempTime = maxCycNum * bcetHigherPrior;
 				
 				//"¡Æ [max / Pj] * Cj" term
 				totalPreemptionTime += preempTime; 
-				this.log.info("The total preemption time for BCRT of Task '" + taskName + "' is :" + totalPreemptionTime);
+				this.log.info("The total preemption time for BCRT of Task '" + taskName + "' is :" + totalPreemptionTime + " mS");
 			//	logger.info("The total preemption time for BCRT of Task '" + taskName + "' is :" + totalPreemptionTime);
-				MyLogger("The total preemption time for BCRT of Task '" + taskName + "' is :" + totalPreemptionTime);
+				MyLogger("The total preemption time for BCRT of Task '" + taskName + "' is :" + totalPreemptionTime + " mS");
 				
 				zahl++;
 			}
@@ -1268,8 +1276,8 @@ public class LWComponent_2801 extends WorkflowComponent{
 	    equalJudge = equal(taskBCRT, temporaryBCRT);
 		//this.log.info(equalJudge);
 	    if (zahl == 0) {
-			this.log.info("There are no preemption for task '" + taskName + "'");
-			MyLogger("There are no preemption for task '" + taskName + "'");
+			this.log.info("There are no preemption of task '" + taskName + "'");
+			MyLogger("There are no preemption of task '" + taskName + "'");
 		}
 		
 		
@@ -1379,7 +1387,7 @@ public class LWComponent_2801 extends WorkflowComponent{
 				}
 			}
 		if (greatestLabelValue == 0) {
-			this.log.info("There is no blocking for this Label : '" + label +"'");
+			this.log.info("There is no blocking for this Label : '" + label.getName() +"'");
 		}
 		
 		}
@@ -1452,7 +1460,8 @@ public class LWComponent_2801 extends WorkflowComponent{
 
 		//find remote tasks, that are tasks allocated on differnt cores as the specified task
 		ArrayList<Task> remoteTaskList = findRemoteTaskList(task, ctx, sortedTasksByScheduler);
-		this.log.info("Remote tasks with lower priority are : " + remoteTaskList);;
+		this.log.info("Remote tasks with lower priority are : " + remoteTaskList);
+		MyLogger("Remote tasks with lower priority are : " + remoteTaskList);
 		//get write label list of task
 		ArrayList<Label> writeLabelList = getWriteLabelList(task);
 		
@@ -1506,12 +1515,15 @@ public class LWComponent_2801 extends WorkflowComponent{
 					
 				}
 			}
+		//if (remoteGreatestLabelValue == 0) {
+			//this.log.info("There is no remote blocking for this Label : '" + label.getName() + "' from remote task: '" + eachtask.getName() + "' with lower priority");
+			//}
+		
+		}
 		if (remoteGreatestLabelValue == 0) {
-			this.log.info("There is no blocking for this Label : '" + label +"'");
+			this.log.info("There is no remote blocking for this Label : '" + label.getName() + "'");
+			
 		}
-		
-		}
-		
 		
 		return remoteGreatestLabelValue;
 	}
