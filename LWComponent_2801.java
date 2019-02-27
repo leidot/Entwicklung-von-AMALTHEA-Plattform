@@ -195,12 +195,14 @@ public class LWComponent_2801 extends WorkflowComponent {
 		this.log.info("The Loop for calculating WCRT and BCRT of each Task starts here : \r");
 		MyLogger("The Loop for calculating WCRT and BCRT of each Task starts here : \r");
 
-		SWModel swModel = ModelUtil.getOrCreateSwModel(getAmaltheaModel(ctx));
-		Value val1 = customPutDouble(swModel, "TotalTest", 2.0);
-		Value val2 = CustomPropertyUtil.customPut(swModel, "TT", "TEST");
-		this.log.info(val1);
-		this.log.info(val2);
-
+		//SWModel swModel = ModelUtil.getOrCreateSwModel(getAmaltheaModel(ctx));
+		//Value val1 = customPutDouble(swModel, "TotalTest", 2.0);
+		//Value val2 = CustomPropertyUtil.customPut(swModel, "TT", "TEST");
+		//this.log.info(val1);
+		//this.log.info(val2);
+		double systemtotalEnergy = 0;
+		double taskWCRT = 0;
+		double taskBCRT = 0;
 		for (String prio : sortedTasksByPrio.keySet()) {
 			ArrayList<Task> arrayList = sortedTasksByPrio.get(prio);
 			this.log.info("Task List of Priority Levle '" + prio + "' is : " + arrayList);
@@ -212,7 +214,7 @@ public class LWComponent_2801 extends WorkflowComponent {
 				String taskName = task.getName();
 				long taskWCET = 0;
 				long taskBCET = 0;
-
+				double totalEnergyConsump = 0;
 				// Test the remoteTaskList
 				// ArrayList<Task> remoteTaskList = findRemoteTaskList(task,
 				// ctx, sortedTasksBySched);
@@ -337,12 +339,12 @@ public class LWComponent_2801 extends WorkflowComponent {
 						// mS");
 
 						// Output WCRT of the specified task
-						double taskWCRT = getTaskWCRT(task, ctx, sortedTasksBySched);
+						 taskWCRT = getTaskWCRT(task, ctx, sortedTasksBySched);
 						this.log.info("WCRT of task '" + taskName + "' is :" + taskWCRT + " mS");
 						MyLogger("WCRT of task '" + taskName + "' is :" + taskWCRT + " mS");
 
 						// Output BCRT of the specified task
-						double taskBCRT = getTaskBCRT(task, ctx, sortedTasksBySched);
+						 taskBCRT = getTaskBCRT(task, ctx, sortedTasksBySched);
 						this.log.info("BCRT of task '" + taskName + "' is :" + taskBCRT + " mS");
 						// logger.info("BCRT of task '" + taskName + "' is :" +
 						// taskBCRT + " mS");
@@ -394,7 +396,7 @@ public class LWComponent_2801 extends WorkflowComponent {
 								+ " mW * " + taskBCRT + " mS = " + idleStateEnergyConsump + " mS*mW");
 
 						// Calculating Total Energy Consumption
-						double totalEnergyConsump = idleStateEnergyConsump + computingEnergyConsump;
+						 totalEnergyConsump = idleStateEnergyConsump + computingEnergyConsump;
 						this.log.info("The Total Energy Consumption of task '" + taskName + "' is :"
 								+ totalEnergyConsump + " mS*mW" + "\r");
 						// logger.info("The Total Energy Consumption of task '"
@@ -405,8 +407,16 @@ public class LWComponent_2801 extends WorkflowComponent {
 
 					}
 				}
+				//Return Energy consumption in "custome priority" of task in swModel
+				customPutDouble(task, "TotalEnergy", totalEnergyConsump);
+				customPutDouble(task, "WCRT", taskWCRT);
+				customPutDouble(task, "BCRT", taskBCRT);
+				systemtotalEnergy += totalEnergyConsump;
 			}
 		}
+		SWModel swModel = ModelUtil.getOrCreateSwModel(getAmaltheaModel(ctx));
+		//Value val1 = customPutDouble(swModel, "TotalTest", 2.0);
+		customPutDouble(swModel, "TotalEnergy", systemtotalEnergy);
 
 	}
 
